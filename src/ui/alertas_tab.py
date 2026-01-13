@@ -14,7 +14,8 @@ class AlertasTab(QWidget):
 
     def build(self):
         layout = QVBoxLayout()
-        layout.addWidget(QLabel("Mensalidades vencidas ou vencendo hoje"))
+
+        layout.addWidget(QLabel("Mensalidades vencidas (pendentes)"))
 
         self.tabela = QTableWidget()
         self.tabela.setColumnCount(5)

@@ -34,5 +34,19 @@ def init_db():
     )
     """)
 
+    # 👇 NOVA TABELA USUÁRIOS
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario TEXT UNIQUE,
+        senha TEXT
+    )
+    """)
+
+    # usuário padrão
+    cur.execute("SELECT COUNT(*) FROM usuarios")
+    if cur.fetchone()[0] == 0:
+        cur.execute("INSERT INTO usuarios (usuario, senha) VALUES ('admin', '123')")
+
     conn.commit()
     conn.close()
