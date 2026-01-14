@@ -1,185 +1,74 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
-    QTableWidget, QTableWidgetItem, QMessageBox, QLabel, QComboBox
+    QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
+    QPushButton, QHBoxLayout, QMessageBox
 )
-from PySide6.QtGui import QColor
-from database.db import connect
-from ui.aluno_profile import AlunoProfile
-
-
-FAIXAS = ["Branca", "Azul", "Roxa", "Marrom", "Preta"]
-
-FAIXA_CORES = {
-    "Branca": "#f9fafb",
-    "Azul": "#2563eb",
-    "Roxa": "#7c3aed",
-    "Marrom": "#92400e",
-    "Preta": "#111827"
-}
+from database.db import listar_alunos, inativar_aluno, excluir_aluno
 
 
 class AlunosTab(QWidget):
-    def __init__(self, refresh_all):
+    def __init__(self):
         super().__init__()
-        self.refresh_all = refresh_all
-        self.build()
+        self.build_ui()
         self.load()
 
-    # ---------------- UI ----------------
-
-    def build(self):
+    def build_ui(self):
         layout = QVBoxLayout(self)
 
-        # ---------- FORM 1 ----------
-        form1 = QHBoxLayout()
-        self.nome = QLineEdit(); self.nome.setPlaceholderText("Nome completo")
-        self.cpf = QLineEdit(); self.cpf.setPlaceholderText("CPF")
-        self.nasc = QLineEdit(); self.nasc.setPlaceholderText("Nascimento (DD/MM/AAAA)")
-        self.tel = QLineEdit(); self.tel.setPlaceholderText("Telefone")
+        titulo = QLabel("Alunos")
+        titulo.setStyleSheet("font-size:20px;font-weight:600;")
+        layout.addWidget(titulo)
 
-        form1.addWidget(self.nome)
-        form1.addWidget(self.cpf)
-        form1.addWidget(self.nasc)
-        form1.addWidget(self.tel)
-
-        # ---------- FORM 2 ----------
-        form2 = QHBoxLayout()
-
-        self.faixa = QComboBox()
-        self.faixa.addItems(FAIXAS)
-        self.faixa.setMinimumWidth(140)
-        self.faixa.view().setMinimumWidth(160)
-        self.faixa.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-
-        self.email = QLineEdit(); self.email.setPlaceholderText("E-mail")
-        self.endereco = QLineEdit(); self.endereco.setPlaceholderText("Endereço")
-
-        form2.addWidget(QLabel("Faixa:"))
-        form2.addWidget(self.faixa)
-        form2.addWidget(self.email)
-        form2.addWidget(self.endereco)
-
-        # ---------- FORM 3 ----------
-        form3 = QHBoxLayout()
-
-        self.valor = QLineEdit(); self.valor.setPlaceholderText("Mensalidade (R$)")
-        self.venc = QLineEdit(); self.venc.setPlaceholderText("Dia vencimento")
-
-        btn_add = QPushButton("Cadastrar Aluno")
-        btn_add.clicked.connect(self.add_aluno)
-
-        btn_inativar = QPushButton("Inativar / Ativar")
-        btn_inativar.setObjectName("secondary")
-        btn_inativar.clicked.connect(self.toggle_status)
-
-        form3.addWidget(self.valor)
-        form3.addWidget(self.venc)
-        form3.addWidget(btn_add)
-        form3.addWidget(btn_inativar)
-
-        # ---------- TABELA ----------
         self.tabela = QTableWidget()
-        self.tabela.setColumnCount(7)
-        self.tabela.setHorizontalHeaderLabels([
-            "ID", "Nome", "CPF", "Telefone", "Faixa", "Mensalidade", "Status"
-        ])
-        self.tabela.setColumnHidden(0, True)
-        self.tabela.cellDoubleClicked.connect(self.open_profile)
-
-        layout.addLayout(form1)
-        layout.addLayout(form2)
-        layout.addLayout(form3)
+        self.tabela.setColumnCount(6)
+        self.tabela.setHorizontalHeaderLabels(
+            ["ID", "Nome", "Faixa", "Graus", "Telefone", "Status"]
+        )
         layout.addWidget(self.tabela)
 
-    # ---------------- AÇÕES ----------------
+        btns = QHBoxLayout()
 
-    def add_aluno(self):
-        try:
-            conn = connect()
-            cur = conn.cursor()
+        self.btn_toggle = QPushButton("Ativar / Inativar")
+        self.btn_del = QPushButton("Excluir")
 
-            cur.execute("""
-                INSERT INTO alunos
-                (nome, cpf, data_nascimento, telefone, faixa, email, endereco,
-                 valor_mensalidade, dia_vencimento, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ATIVO')
-            """, (
-                self.nome.text(),
-                self.cpf.text(),
-                self.nasc.text(),
-                self.tel.text(),
-                self.faixa.currentText(),
-                self.email.text(),
-                self.endereco.text(),
-                float(self.valor.text()),
-                int(self.venc.text())
-            ))
+        self.btn_toggle.clicked.connect(self.toggle_status)
+        self.btn_del.clicked.connect(self.delete)
 
-            conn.commit()
-            conn.close()
-
-            self.clear_form()
-            self.load()
-            self.refresh_all()
-
-        except Exception as e:
-            QMessageBox.warning(self, "Erro", str(e))
+        btns.addWidget(self.btn_toggle)
+        btns.addWidget(self.btn_del)
+        layout.addLayout(btns)
 
     def load(self):
-        conn = connect()
-        cur = conn.cursor()
+        dados = listar_alunos()
+        self.tabela.setRowCount(len(dados))
 
-        cur.execute("""
-            SELECT id, nome, cpf, telefone, faixa, valor_mensalidade, status
-            FROM alunos
-            ORDER BY nome
-        """)
-        rows = cur.fetchall()
-        conn.close()
-
-        self.tabela.setRowCount(len(rows))
-        for i, row in enumerate(rows):
+        for i, row in enumerate(dados):
             for j, val in enumerate(row):
-                item = QTableWidgetItem(str(val))
+                if j == 5:
+                    val = "Ativo" if val == 1 else "Inativo"
+                self.tabela.setItem(i, j, QTableWidgetItem(str(val)))
 
-                # --- Estiliza faixa ---
-                if j == 4:  # coluna Faixa
-                    faixa = str(val)
-                    item.setText(f"🥋 {faixa}")
-                    cor = FAIXA_CORES.get(faixa, "#111827")
-                    item.setForeground(QColor(cor))
-
-                self.tabela.setItem(i, j, item)
-
-    def toggle_status(self):
+    def get_selected_id(self):
         row = self.tabela.currentRow()
         if row < 0:
+            return None, None
+        aluno_id = int(self.tabela.item(row, 0).text())
+        status = self.tabela.item(row, 5).text()
+        return aluno_id, status
+
+    def toggle_status(self):
+        aluno_id, status = self.get_selected_id()
+        if not aluno_id:
             return
 
-        aluno_id = self.tabela.item(row, 0).text()
-        status = self.tabela.item(row, 6).text()
-
-        novo = "INATIVO" if status == "ATIVO" else "ATIVO"
-
-        conn = connect()
-        cur = conn.cursor()
-        cur.execute("UPDATE alunos SET status=? WHERE id=?", (novo, aluno_id))
-        conn.commit()
-        conn.close()
-
+        novo = 0 if status == "Ativo" else 1
+        inativar_aluno(aluno_id, novo)
         self.load()
-        self.refresh_all()
 
-    def open_profile(self, row, col):
-        aluno_id = self.tabela.item(row, 0).text()
-        self.profile = AlunoProfile(aluno_id)
-        self.profile.setWindowTitle("Perfil do Aluno")
-        self.profile.resize(720, 480)
-        self.profile.show()
+    def delete(self):
+        aluno_id, _ = self.get_selected_id()
+        if not aluno_id:
+            return
 
-    def clear_form(self):
-        for f in [
-            self.nome, self.cpf, self.nasc, self.tel,
-            self.email, self.endereco, self.valor, self.venc
-        ]:
-            f.clear()
+        if QMessageBox.question(self, "Confirmar", "Excluir aluno?") == QMessageBox.Yes:
+            excluir_aluno(aluno_id)
+            self.load()

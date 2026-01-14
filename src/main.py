@@ -1,100 +1,130 @@
 import sys
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget,
-    QHBoxLayout, QVBoxLayout,
-    QPushButton, QLabel, QStackedWidget
+    QApplication, QWidget, QHBoxLayout, QVBoxLayout, QPushButton,
+    QLabel, QStackedWidget
 )
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 
 from database.db import init_db
+from ui.login_window import LoginWindow
 from ui.dashboard_tab import DashboardTab
 from ui.alunos_tab import AlunosTab
-from ui.financeiro_tab import FinanceiroTab
+from ui.cadastro_aluno_tab import CadastroAlunoTab
 from ui.config_tab import ConfigTab
 
 
-class MainWindow(QMainWindow):
-    def __init__(self, usuario=None):
+class MainWindow(QWidget):
+    def __init__(self, user):
         super().__init__()
-
+        self.user = user
         self.setWindowTitle("Centro de Treinamento Legacy BJJ")
-        self.resize(1200, 720)
+        self.resize(1200, 700)
+        self.menu_buttons = []
+        self.build_ui()
 
-        central = QWidget()
-        self.setCentralWidget(central)
-        main_layout = QHBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+    def build_ui(self):
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
 
-        # ===== SIDEBAR =====
-        sidebar_layout = QVBoxLayout()
-        sidebar_layout.setSpacing(10)
-        sidebar_layout.setContentsMargins(16, 16, 16, 16)
+        # -------- SIDEBAR --------
+        sidebar_widget = QWidget()
+        sidebar_widget.setFixedWidth(240)
+        sidebar_widget.setStyleSheet("""
+            background-color:#ffffff;
+            border-right:1px solid #e5e7eb;
+        """)
 
-        titulo = QLabel("LEGACY BJJ")
-        titulo.setStyleSheet("color:#111827;font-weight:700;")
+        sidebar = QVBoxLayout(sidebar_widget)
+        sidebar.setAlignment(Qt.AlignTop)
+        sidebar.setContentsMargins(10, 20, 10, 10)
+        sidebar.setSpacing(8)
 
-        btn_alunos = QPushButton("Alunos")
-        btn_fin = QPushButton("Financeiro")
-        btn_dash = QPushButton("Dashboard")
-        btn_cfg = QPushButton("Configurações")
+        # ----- LOGO -----
+        logo = QLabel()
+        pix = QPixmap("src/assets/logo.png")
+        pix = pix.scaled(280, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        logo.setPixmap(pix)
+        logo.setAlignment(Qt.AlignCenter)
 
-        for btn in [btn_alunos, btn_fin, btn_dash, btn_cfg]:
-            btn.setCheckable(True)
+        logo_wrap = QWidget()
+        lw = QVBoxLayout(logo_wrap)
+        lw.addWidget(logo)
+        lw.setContentsMargins(0, 0, 0, 16)
 
-        self.menu_buttons = [btn_alunos, btn_fin, btn_dash, btn_cfg]
+        sidebar.addWidget(logo_wrap)
 
-        sidebar_layout.addWidget(titulo)
-        sidebar_layout.addSpacing(30)
-        sidebar_layout.addWidget(btn_alunos)
-        sidebar_layout.addWidget(btn_fin)
-        sidebar_layout.addWidget(btn_dash)
-        sidebar_layout.addStretch()
-        sidebar_layout.addWidget(btn_cfg)
+        # ----- MENU BUTTONS -----
+        def menu_btn(text, idx):
+            b = QPushButton(text)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setFixedHeight(42)
+            b.setCheckable(True)
+            b.setStyleSheet("""
+                QPushButton{
+                    border:none;
+                    text-align:left;
+                    padding-left:18px;
+                    font-size:14px;
+                    font-weight:600;
+                    color:#111827;
+                    border-radius:8px;
+                }
+                QPushButton:hover{
+                    background:#f3f4f6;
+                }
+                QPushButton:checked{
+                    background:#e5e7eb;
+                    border-left:4px solid #111827;
+                    padding-left:14px;
+                }
+            """)
+            b.clicked.connect(lambda: self.change_page(idx, b))
+            self.menu_buttons.append(b)
+            return b
 
-        sidebar = QWidget()
-        sidebar.setObjectName("sidebar")
-        sidebar.setLayout(sidebar_layout)
-        sidebar.setFixedWidth(220)
+        sidebar.addWidget(menu_btn("Alunos", 0))
+        sidebar.addWidget(menu_btn("Cadastrar Aluno", 1))
+        sidebar.addWidget(menu_btn("Dashboard", 2))
+        sidebar.addWidget(menu_btn("Configurações", 3))
+        sidebar.addStretch()
 
-        # ===== STACK =====
+        root.addWidget(sidebar_widget)
+
+        # -------- CONTEÚDO --------
         self.stack = QStackedWidget()
 
-        self.alunos = AlunosTab(refresh_all=self.refresh_all)
-        self.financeiro = FinanceiroTab()
-        self.dashboard = DashboardTab()
-        self.config = ConfigTab()
+        self.alunos_tab = AlunosTab()
+        self.cadastro_tab = CadastroAlunoTab(refresh_callback=self.alunos_tab.load)
+        self.dashboard_tab = DashboardTab()
+        self.config_tab = ConfigTab()
 
-        self.stack.addWidget(self.alunos)
-        self.stack.addWidget(self.financeiro)
-        self.stack.addWidget(self.dashboard)
-        self.stack.addWidget(self.config)
+        self.stack.addWidget(self.alunos_tab)
+        self.stack.addWidget(self.cadastro_tab)
+        self.stack.addWidget(self.dashboard_tab)
+        self.stack.addWidget(self.config_tab)
 
-        main_layout.addWidget(sidebar)
-        main_layout.addWidget(self.stack)
+        root.addWidget(self.stack)
 
-        # ===== AÇÕES =====
-        btn_alunos.clicked.connect(lambda: self.switch(btn_alunos, self.alunos))
-        btn_fin.clicked.connect(lambda: self.switch(btn_fin, self.financeiro))
-        btn_dash.clicked.connect(lambda: self.switch(btn_dash, self.dashboard))
-        btn_cfg.clicked.connect(lambda: self.switch(btn_cfg, self.config))
+        # página inicial
+        self.menu_buttons[0].setChecked(True)
 
-        btn_alunos.setChecked(True)
-        self.open_page(self.alunos)
-
-    def open_page(self, widget):
-        self.stack.setCurrentWidget(widget)
-
-    def switch(self, btn, page):
+    def change_page(self, idx, btn):
+        self.stack.setCurrentIndex(idx)
         for b in self.menu_buttons:
             b.setChecked(False)
         btn.setChecked(True)
-        self.open_page(page)
 
-    def refresh_all(self):
-        try:
-            self.dashboard.load()
-            self.financeiro.load()
-        except:
-            pass
+    def show_window(self):
+        self.show()
+
+
+# --------- APP ---------
+
+def abrir_sistema(user):
+    global win
+    win = MainWindow(user)
+    win.show_window()
 
 
 if __name__ == "__main__":
@@ -102,19 +132,7 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
 
-    try:
-        with open("src/ui/style.qss", "r") as f:
-            app.setStyleSheet(f.read())
-    except:
-        pass
-
-    from ui.login_window import LoginWindow
-
-    def abrir(usuario):
-        win = MainWindow(usuario)
-        win.show()
-
-    login = LoginWindow(on_success=abrir)
+    login = LoginWindow(on_success=abrir_sistema)
     login.show()
 
     sys.exit(app.exec())

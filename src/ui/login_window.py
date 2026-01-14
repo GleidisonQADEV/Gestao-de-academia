@@ -1,78 +1,135 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLineEdit,
-    QPushButton, QLabel, QMessageBox, QFrame
+    QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
+    QMessageBox, QFrame
 )
+from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
-from database.db import connect
+import os
+
+from database.db import validar_login
 
 
 class LoginWindow(QWidget):
     def __init__(self, on_success):
         super().__init__()
         self.on_success = on_success
-
         self.setWindowTitle("Centro de Treinamento Legacy BJJ")
-        self.resize(400, 460)
+        self.setFixedSize(420, 600)
+        self.build_ui()
 
-        root = QVBoxLayout(self)
-        root.setAlignment(Qt.AlignCenter)
-        root.setContentsMargins(0, 0, 0, 0)
+    def build_ui(self):
+        # ----- Fundo geral -----
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+            }
+        """)
 
+        main_layout = QVBoxLayout(self)
+        main_layout.setAlignment(Qt.AlignCenter)
+
+        # ----- Card central -----
         card = QFrame()
-        card.setObjectName("loginCard")
-        card.setFixedWidth(340)
+        card.setObjectName("card")
+        card.setFixedSize(360, 520)
+        card.setStyleSheet("""
+            QFrame#card {
+                background-color: #ffffff;
+                border-radius: 18px;
+            }
+        """)
 
         card_layout = QVBoxLayout(card)
-        card_layout.setSpacing(16)
-        card_layout.setContentsMargins(32, 32, 32, 32)
+        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setSpacing(18)
+        card_layout.setAlignment(Qt.AlignTop)
 
-        titulo = QLabel("Centro de Treinamento")
-        titulo.setAlignment(Qt.AlignCenter)
-        titulo.setStyleSheet("font-size:16px;font-weight:600;")
+        # ----- Área branca da logo -----
+        logo_frame = QFrame()
+        logo_frame.setStyleSheet("""
+            QFrame {
+                background-color: #ffffff;
+            }
+        """)
+        logo_layout = QVBoxLayout(logo_frame)
+        logo_layout.setAlignment(Qt.AlignCenter)
 
-        subtitulo = QLabel("Legacy BJJ")
-        subtitulo.setAlignment(Qt.AlignCenter)
-        subtitulo.setStyleSheet("font-size:22px;font-weight:800;")
+        # ----- LOGO GRANDE -----
+        logo_label = QLabel()
+        logo_path = os.path.join(os.path.dirname(__file__), "..", "assets", "logo.png")
+        logo_path = os.path.abspath(logo_path)
 
-        acesso = QLabel("Acesso ao Sistema")
-        acesso.setAlignment(Qt.AlignCenter)
-        acesso.setStyleSheet("color:#6b7280;")
+        pixmap = QPixmap(logo_path)
+        pixmap = pixmap.scaled(280, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        logo_label.setPixmap(pixmap)
+        logo_label.setAlignment(Qt.AlignCenter)
 
-        self.user = QLineEdit()
-        self.user.setPlaceholderText("Usuário")
+        logo_layout.addWidget(logo_label)
 
-        self.pwd = QLineEdit()
-        self.pwd.setPlaceholderText("Senha")
-        self.pwd.setEchoMode(QLineEdit.Password)
+        # ----- Inputs -----
+        self.user_input = QLineEdit()
+        self.user_input.setPlaceholderText("Usuário")
 
-        btn = QPushButton("Entrar")
-        btn.clicked.connect(self.login)
+        self.pass_input = QLineEdit()
+        self.pass_input.setPlaceholderText("Senha")
+        self.pass_input.setEchoMode(QLineEdit.Password)
 
-        card_layout.addWidget(titulo)
-        card_layout.addWidget(subtitulo)
-        card_layout.addWidget(acesso)
+        input_style = """
+            QLineEdit {
+                padding: 12px;
+                border-radius: 10px;
+                border: 1px solid #cccccc;
+                font-size: 14px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #b00020;
+            }
+        """
+        self.user_input.setStyleSheet(input_style)
+        self.pass_input.setStyleSheet(input_style)
+
+        # ----- Botão -----
+        btn_login = QPushButton("Entrar")
+        btn_login.setFixedHeight(45)
+        btn_login.setCursor(Qt.PointingHandCursor)
+        btn_login.setStyleSheet("""
+            QPushButton {
+                background-color: #b00020;
+                color: white;
+                border-radius: 12px;
+                font-size: 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #8c001a;
+            }
+        """)
+        btn_login.clicked.connect(self.login)
+
+        # ----- Montagem -----
+        card_layout.addWidget(logo_frame)
         card_layout.addSpacing(10)
-        card_layout.addWidget(self.user)
-        card_layout.addWidget(self.pwd)
+        card_layout.addWidget(self.user_input)
+        card_layout.addWidget(self.pass_input)
         card_layout.addSpacing(10)
-        card_layout.addWidget(btn)
+        card_layout.addWidget(btn_login)
 
-        root.addWidget(card)
+        main_layout.addWidget(card)
+
+    # ---------------- LOGIN ----------------
 
     def login(self):
-        conn = connect()
-        cur = conn.cursor()
+        user = self.user_input.text().strip()
+        senha = self.pass_input.text().strip()
 
-        cur.execute(
-            "SELECT usuario FROM usuarios WHERE usuario=? AND senha=?",
-            (self.user.text(), self.pwd.text())
-        )
+        if not user or not senha:
+            QMessageBox.warning(self, "Erro", "Informe usuário e senha.")
+            return
 
-        ok = cur.fetchone()
-        conn.close()
+        ok = validar_login(user, senha)
 
         if ok:
-            self.close()
             self.on_success(ok[0])
+            self.close()
         else:
-            QMessageBox.warning(self, "Erro", "Usuário ou senha inválidos")
+            QMessageBox.warning(self, "Erro", "Usuário ou senha inválidos.")

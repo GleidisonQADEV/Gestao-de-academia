@@ -1,2 +1,19 @@
-academia.db
+# Ambiente virtual
+venv/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Banco local
+*.db
+
+# Cache Python
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
 .pdf
