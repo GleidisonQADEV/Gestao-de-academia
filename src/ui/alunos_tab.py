@@ -1,9 +1,21 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit,
-    QTableWidget, QTableWidgetItem, QMessageBox, QLabel
+    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
+    QTableWidget, QTableWidgetItem, QMessageBox, QLabel, QComboBox
 )
+from PySide6.QtGui import QColor
 from database.db import connect
-from ui.historico_dialog import HistoricoDialog
+from ui.aluno_profile import AlunoProfile
+
+
+FAIXAS = ["Branca", "Azul", "Roxa", "Marrom", "Preta"]
+
+FAIXA_CORES = {
+    "Branca": "#f9fafb",
+    "Azul": "#2563eb",
+    "Roxa": "#7c3aed",
+    "Marrom": "#92400e",
+    "Preta": "#111827"
+}
 
 
 class AlunosTab(QWidget):
@@ -11,188 +23,163 @@ class AlunosTab(QWidget):
         super().__init__()
         self.refresh_all = refresh_all
         self.build()
-        self.load_alunos()
+        self.load()
 
     # ---------------- UI ----------------
 
     def build(self):
         layout = QVBoxLayout(self)
 
-        # ---------- BUSCA ----------
-        busca_layout = QHBoxLayout()
-        busca_layout.addWidget(QLabel("Buscar:"))
+        # ---------- FORM 1 ----------
+        form1 = QHBoxLayout()
+        self.nome = QLineEdit(); self.nome.setPlaceholderText("Nome completo")
+        self.cpf = QLineEdit(); self.cpf.setPlaceholderText("CPF")
+        self.nasc = QLineEdit(); self.nasc.setPlaceholderText("Nascimento (DD/MM/AAAA)")
+        self.tel = QLineEdit(); self.tel.setPlaceholderText("Telefone")
 
-        self.busca = QLineEdit()
-        self.busca.setPlaceholderText("Digite o nome do aluno...")
-        self.busca.textChanged.connect(self.load_alunos)
+        form1.addWidget(self.nome)
+        form1.addWidget(self.cpf)
+        form1.addWidget(self.nasc)
+        form1.addWidget(self.tel)
 
-        busca_layout.addWidget(self.busca)
-        layout.addLayout(busca_layout)
+        # ---------- FORM 2 ----------
+        form2 = QHBoxLayout()
 
-        # ---------- FORM ----------
-        form = QHBoxLayout()
+        self.faixa = QComboBox()
+        self.faixa.addItems(FAIXAS)
+        self.faixa.setMinimumWidth(140)
+        self.faixa.view().setMinimumWidth(160)
+        self.faixa.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 
-        self.nome = QLineEdit()
-        self.nome.setPlaceholderText("Nome")
+        self.email = QLineEdit(); self.email.setPlaceholderText("E-mail")
+        self.endereco = QLineEdit(); self.endereco.setPlaceholderText("Endereço")
 
-        self.telefone = QLineEdit()
-        self.telefone.setPlaceholderText("Telefone")
+        form2.addWidget(QLabel("Faixa:"))
+        form2.addWidget(self.faixa)
+        form2.addWidget(self.email)
+        form2.addWidget(self.endereco)
 
-        self.mensal = QLineEdit()
-        self.mensal.setPlaceholderText("Mensalidade")
+        # ---------- FORM 3 ----------
+        form3 = QHBoxLayout()
 
-        self.venc = QLineEdit()
-        self.venc.setPlaceholderText("Dia vencimento")
+        self.valor = QLineEdit(); self.valor.setPlaceholderText("Mensalidade (R$)")
+        self.venc = QLineEdit(); self.venc.setPlaceholderText("Dia vencimento")
 
-        btn_add = QPushButton("Cadastrar")
+        btn_add = QPushButton("Cadastrar Aluno")
         btn_add.clicked.connect(self.add_aluno)
 
-        form.addWidget(self.nome)
-        form.addWidget(self.telefone)
-        form.addWidget(self.mensal)
-        form.addWidget(self.venc)
-        form.addWidget(btn_add)
+        btn_inativar = QPushButton("Inativar / Ativar")
+        btn_inativar.setObjectName("secondary")
+        btn_inativar.clicked.connect(self.toggle_status)
 
-        layout.addLayout(form)
+        form3.addWidget(self.valor)
+        form3.addWidget(self.venc)
+        form3.addWidget(btn_add)
+        form3.addWidget(btn_inativar)
 
         # ---------- TABELA ----------
         self.tabela = QTableWidget()
-        self.tabela.setColumnCount(6)
-        self.tabela.setHorizontalHeaderLabels(
-            ["ID", "Nome", "Telefone", "Mensal", "Venc", "Status"]
-        )
-        self.tabela.setSelectionBehavior(QTableWidget.SelectRows)
+        self.tabela.setColumnCount(7)
+        self.tabela.setHorizontalHeaderLabels([
+            "ID", "Nome", "CPF", "Telefone", "Faixa", "Mensalidade", "Status"
+        ])
+        self.tabela.setColumnHidden(0, True)
+        self.tabela.cellDoubleClicked.connect(self.open_profile)
 
-        # 👉 DUPLO CLIQUE = ABRIR HISTÓRICO
-        self.tabela.cellDoubleClicked.connect(self.abrir_historico)
-
+        layout.addLayout(form1)
+        layout.addLayout(form2)
+        layout.addLayout(form3)
         layout.addWidget(self.tabela)
 
-        # ---------- BOTÕES ----------
-        btn_layout = QHBoxLayout()
-
-        btn_inativar = QPushButton("Inativar / Reativar")
-        btn_inativar.clicked.connect(self.toggle_status)
-
-        btn_del = QPushButton("Excluir")
-        btn_del.clicked.connect(self.del_aluno)
-
-        btn_layout.addWidget(btn_inativar)
-        btn_layout.addWidget(btn_del)
-
-        layout.addLayout(btn_layout)
-
-    # ---------------- DADOS ----------------
-
-    def load_alunos(self):
-        filtro = self.busca.text()
-
-        conn = connect()
-        cur = conn.cursor()
-
-        if filtro:
-            cur.execute("""
-                SELECT * FROM alunos 
-                WHERE nome LIKE ?
-                ORDER BY nome
-            """, (f"%{filtro}%",))
-        else:
-            cur.execute("SELECT * FROM alunos ORDER BY nome")
-
-        rows = cur.fetchall()
-        conn.close()
-
-        self.tabela.setRowCount(0)
-
-        for row in rows:
-            r = self.tabela.rowCount()
-            self.tabela.insertRow(r)
-            for c, v in enumerate(row):
-                self.tabela.setItem(r, c, QTableWidgetItem(str(v)))
+    # ---------------- AÇÕES ----------------
 
     def add_aluno(self):
         try:
-            if not self.nome.text():
-                raise Exception("Informe o nome")
-
             conn = connect()
             cur = conn.cursor()
 
             cur.execute("""
-                INSERT INTO alunos (nome, telefone, valor_mensalidade, dia_vencimento, status)
-                VALUES (?, ?, ?, ?, 'ATIVO')
+                INSERT INTO alunos
+                (nome, cpf, data_nascimento, telefone, faixa, email, endereco,
+                 valor_mensalidade, dia_vencimento, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ATIVO')
             """, (
                 self.nome.text(),
-                self.telefone.text(),
-                float(self.mensal.text()),
+                self.cpf.text(),
+                self.nasc.text(),
+                self.tel.text(),
+                self.faixa.currentText(),
+                self.email.text(),
+                self.endereco.text(),
+                float(self.valor.text()),
                 int(self.venc.text())
             ))
 
             conn.commit()
             conn.close()
 
-            self.nome.clear()
-            self.telefone.clear()
-            self.mensal.clear()
-            self.venc.clear()
-
-            self.load_alunos()
+            self.clear_form()
+            self.load()
             self.refresh_all()
 
         except Exception as e:
             QMessageBox.warning(self, "Erro", str(e))
 
-    def del_aluno(self):
-        linha = self.tabela.currentRow()
-        if linha < 0:
-            return
-
-        aluno_id = self.tabela.item(linha, 0).text()
-
-        confirm = QMessageBox.question(
-            self, "Excluir", "Deseja excluir este aluno?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-
-        if confirm == QMessageBox.No:
-            return
-
+    def load(self):
         conn = connect()
         cur = conn.cursor()
-        cur.execute("DELETE FROM mensalidades WHERE aluno_id=?", (aluno_id,))
-        cur.execute("DELETE FROM alunos WHERE id=?", (aluno_id,))
-        conn.commit()
+
+        cur.execute("""
+            SELECT id, nome, cpf, telefone, faixa, valor_mensalidade, status
+            FROM alunos
+            ORDER BY nome
+        """)
+        rows = cur.fetchall()
         conn.close()
 
-        self.load_alunos()
-        self.refresh_all()
+        self.tabela.setRowCount(len(rows))
+        for i, row in enumerate(rows):
+            for j, val in enumerate(row):
+                item = QTableWidgetItem(str(val))
 
-    # ---------------- STATUS ----------------
+                # --- Estiliza faixa ---
+                if j == 4:  # coluna Faixa
+                    faixa = str(val)
+                    item.setText(f"🥋 {faixa}")
+                    cor = FAIXA_CORES.get(faixa, "#111827")
+                    item.setForeground(QColor(cor))
+
+                self.tabela.setItem(i, j, item)
 
     def toggle_status(self):
-        linha = self.tabela.currentRow()
-        if linha < 0:
+        row = self.tabela.currentRow()
+        if row < 0:
             return
 
-        aluno_id = self.tabela.item(linha, 0).text()
-        status_atual = self.tabela.item(linha, 5).text()
+        aluno_id = self.tabela.item(row, 0).text()
+        status = self.tabela.item(row, 6).text()
 
-        novo_status = "INATIVO" if status_atual == "ATIVO" else "ATIVO"
+        novo = "INATIVO" if status == "ATIVO" else "ATIVO"
 
         conn = connect()
         cur = conn.cursor()
-        cur.execute("UPDATE alunos SET status=? WHERE id=?", (novo_status, aluno_id))
+        cur.execute("UPDATE alunos SET status=? WHERE id=?", (novo, aluno_id))
         conn.commit()
         conn.close()
 
-        self.load_alunos()
+        self.load()
         self.refresh_all()
 
-    # ---------------- HISTÓRICO ----------------
-
-    def abrir_historico(self, row, col):
+    def open_profile(self, row, col):
         aluno_id = self.tabela.item(row, 0).text()
-        nome = self.tabela.item(row, 1).text()
+        self.profile = AlunoProfile(aluno_id)
+        self.profile.setWindowTitle("Perfil do Aluno")
+        self.profile.resize(720, 480)
+        self.profile.show()
 
-        dlg = HistoricoDialog(aluno_id, nome)
-        dlg.exec()
+    def clear_form(self):
+        for f in [
+            self.nome, self.cpf, self.nasc, self.tel,
+            self.email, self.endereco, self.valor, self.venc
+        ]:
+            f.clear()

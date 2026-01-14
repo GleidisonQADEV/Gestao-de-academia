@@ -15,7 +15,12 @@ def init_db():
     CREATE TABLE IF NOT EXISTS alunos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT NOT NULL,
+        cpf TEXT,
+        data_nascimento TEXT,
         telefone TEXT,
+        faixa TEXT,
+        email TEXT,
+        endereco TEXT,
         valor_mensalidade REAL,
         dia_vencimento INTEGER,
         status TEXT
@@ -34,7 +39,6 @@ def init_db():
     )
     """)
 
-    # 👇 NOVA TABELA USUÁRIOS
     cur.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,10 +47,10 @@ def init_db():
     )
     """)
 
-    # usuário padrão
     cur.execute("SELECT COUNT(*) FROM usuarios")
     if cur.fetchone()[0] == 0:
         cur.execute("INSERT INTO usuarios (usuario, senha) VALUES ('admin', '123')")
 
     conn.commit()
     conn.close()
+
