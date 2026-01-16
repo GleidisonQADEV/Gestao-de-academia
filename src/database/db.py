@@ -15,7 +15,7 @@ def init_db():
     conn = get_conn()
     cur = conn.cursor()
 
-    # USUÁRIOS (login)
+    # USUÁRIOS
     cur.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,7 +24,7 @@ def init_db():
     )
     """)
 
-    # ALUNOS
+    # ALUNOS (COM TODOS OS CAMPOS)
     cur.execute("""
     CREATE TABLE IF NOT EXISTS alunos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,6 +37,9 @@ def init_db():
         nascimento TEXT,
         faixa TEXT,
         grau TEXT,
+        peso REAL,
+        altura REAL,
+        plano TEXT,
         foto_path TEXT,
         certificado_path TEXT,
         ativo INTEGER DEFAULT 1
@@ -64,7 +67,7 @@ def validar_login(usuario, senha):
 
 # ---------------------------
 def inserir_aluno(nome, cpf, email, telefone, cep, endereco, nascimento,
-                  faixa, grau, foto_path, certificado_path):
+                  faixa, grau, peso, altura, plano, foto_path, certificado_path):
 
     conn = get_conn()
     cur = conn.cursor()
@@ -72,12 +75,12 @@ def inserir_aluno(nome, cpf, email, telefone, cep, endereco, nascimento,
     cur.execute("""
         INSERT INTO alunos (
             nome, cpf, email, telefone, cep, endereco, nascimento,
-            faixa, grau, foto_path, certificado_path, ativo
+            faixa, grau, peso, altura, plano, foto_path, certificado_path, ativo
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     """, (
         nome, cpf, email, telefone, cep, endereco, nascimento,
-        faixa, grau, foto_path, certificado_path
+        faixa, grau, peso, altura, plano, foto_path, certificado_path
     ))
 
     conn.commit()
@@ -108,7 +111,6 @@ def inativar_aluno(aluno_id):
     conn.close()
 
 
-# ---------------------------
 def ativar_aluno(aluno_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -117,7 +119,6 @@ def ativar_aluno(aluno_id):
     conn.close()
 
 
-# ---------------------------
 def excluir_aluno(aluno_id):
     conn = get_conn()
     cur = conn.cursor()
