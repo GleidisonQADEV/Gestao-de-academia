@@ -252,8 +252,14 @@ class CadastroAlunoTab(BaseTab):
         self.valor_personalizado.setPlaceholderText("Digite o valor (ex: 99.90)")
         self.valor_personalizado.setFixedWidth(MINI_W)
         self.valor_personalizado.setStyleSheet(input_style)
-        self.valor_personalizado.setVisible(False)
-        form.addLayout(row("Valor Plano:", self.valor_personalizado))
+
+        self.valor_plano_wrap = QWidget()
+        vpl = QHBoxLayout(self.valor_plano_wrap)
+        vpl.setContentsMargins(0, 0, 0, 0)
+        vpl.addLayout(row("Valor do Plano:", self.valor_personalizado))
+
+        form.addWidget(self.valor_plano_wrap)
+        self.valor_plano_wrap.setVisible(False)
 
         # -------- ARQUIVOS --------
         self.foto_label = QLabel()
@@ -302,7 +308,9 @@ class CadastroAlunoTab(BaseTab):
 
     def toggle_plano_personalizado(self):
         texto = self.plano.currentText()
-        self.valor_personalizado.setVisible(texto == "Plano Personalizado")
+        mostrar = texto == "Plano Personalizado"
+        self.valor_plano_wrap.setVisible(mostrar)
+
 
     def limpar_formulario(self):
         self.nome.clear()
@@ -328,7 +336,36 @@ class CadastroAlunoTab(BaseTab):
         self.resp_wrap.setVisible(False)
 
     def toggle_responsavel(self):
-        self.resp_wrap.setVisible(self.chk_kids.isChecked())
+        is_kid = self.chk_kids.isChecked()
+        self.resp_wrap.setVisible(is_kid)
+
+        self.plano.blockSignals(True)
+        self.plano.clear()
+
+        if is_kid:
+            self.plano.addItems([
+                "Kids (5–13) - R$150",
+                "Plano Personalizado",
+                "Plano Bolsista (Patrocinado)"
+            ])
+        else:
+            self.plano.addItems([
+                "Adulto - R$180",
+                "Kids (5–13) - R$150",
+                "Família: 2 adultos - R$320",
+                "Família: 1 adulto + 1 kids - R$300",
+                "Família: 2 adultos + 1 kids - R$450",
+                "Família: 1 adulto + 2 kids - R$430",
+                "Família: 1 adulto + 3 kids - R$500",
+                "Plano Personalizado",
+                "Plano Bolsista (Patrocinado)"
+            ])
+
+        self.plano.setCurrentIndex(0)
+        self.plano.blockSignals(False)
+
+        self.toggle_plano_personalizado()
+
 
     def selecionar_foto(self):
         file, _ = QFileDialog.getOpenFileName(self, "Selecionar Foto", "", "Imagens (*.png *.jpg *.jpeg)")
@@ -343,12 +380,15 @@ class CadastroAlunoTab(BaseTab):
             self.certificado_path = file
             
     def confirmar_salvamento(self):
-        return AppDialog(
+        dlg = AppDialog(
             "Confirmar Cadastro",
             "Confira se todos os dados estão corretos.\n\nDeseja salvar o cadastro?",
             ("Cancelar", "Confirmar"),
             self
-        ).exec()
+        )
+        dlg.exec()
+        return dlg.clicked
+
 
 
     # -------------------------------------------------
@@ -412,10 +452,6 @@ class CadastroAlunoTab(BaseTab):
         if not plano:
             AppDialog("Atenção", "Plano obrigatório.", ("OK",), self).exec()
             return
-        
-        if self.confirmar_salvamento() != "Confirmar":
-            return
-
 
         # ===== KIDS =====
         if is_kid:
@@ -430,12 +466,40 @@ class CadastroAlunoTab(BaseTab):
                 AppDialog("Erro", "CPF do aluno já cadastrado (Kids).", ("OK",), self).exec()
                 return
 
+            vincular_responsavel = False
+
+            # se responsável já existir, perguntar se deseja vincular
+            if cpf_existe(resp_cpf):
+                dlg = AppDialog(
+                    "Responsável já cadastrado",
+                    "Este CPF de responsável já possui cadastro.\n\n"
+                    "Deseja vincular este aluno a esse responsável?",
+                    ("Não vincular", "Vincular"),
+                    self
+                )
+                dlg.exec()
+
+                if dlg.clicked == "Vincular":
+                    vincular_responsavel = True
+
+
+    # se vinculou, plano fica controlado pelo responsável
+            if vincular_responsavel:
+                plano_final = "Vinculado ao responsável"
+            else:
+                plano_final = plano  # usa Kids / Personalizado / Bolsista
+
+            if self.confirmar_salvamento() != "Confirmar":
+                return
+
             inserir_kid(
                 nome, cpf, resp_nome, resp_cpf, email,
                 telefone, cep, endereco,
                 data_nasc, faixa, grau, peso, altura,
-                plano, self.foto_path, self.certificado_path
+                plano_final, self.foto_path, self.certificado_path
             )
+
+
 
         # ===== ADULTO =====
         else:
@@ -451,6 +515,9 @@ class CadastroAlunoTab(BaseTab):
                 AppDialog("Erro", "E-mail já cadastrado.", ("OK",), self).exec()
                 return
             
+            if self.confirmar_salvamento() != "Confirmar":
+                return
+
             inserir_aluno(
                 nome, cpf, email, telefone, cep,
                 endereco, data_nasc, faixa, grau, peso, altura,
