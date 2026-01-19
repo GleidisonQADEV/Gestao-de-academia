@@ -1,4 +1,5 @@
 import sys
+
 from PySide6.QtWidgets import (
     QApplication, QWidget, QHBoxLayout, QVBoxLayout, QPushButton,
     QLabel, QStackedWidget
@@ -7,6 +8,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
 from database.db import init_db
+from database.kids_db import init_kids_db
+
 from ui.login_window import LoginWindow
 from ui.dashboard_tab import DashboardTab
 from ui.alunos_tab import AlunosTab
@@ -43,7 +46,7 @@ class MainWindow(QWidget):
         # ----- LOGO -----
         logo = QLabel()
         pix = QPixmap("src/assets/logo.png")
-        pix = pix.scaled(280, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        pix = pix.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         logo.setPixmap(pix)
         logo.setAlignment(Qt.AlignCenter)
 
@@ -104,10 +107,13 @@ class MainWindow(QWidget):
         self.stack.addWidget(self.dashboard_tab)
         self.stack.addWidget(self.config_tab)
 
+        self.stack.setCurrentIndex(0)  # página inicial
+
         root.addWidget(self.stack)
 
-        # página inicial
-        self.menu_buttons[0].setChecked(True)
+        # botão inicial marcado
+        if self.menu_buttons:
+            self.menu_buttons[0].setChecked(True)
 
     def change_page(self, idx, btn):
         self.stack.setCurrentIndex(idx)
@@ -128,7 +134,8 @@ def abrir_sistema(user):
 
 
 if __name__ == "__main__":
-    init_db()
+    init_db()        # banco adultos + login
+    init_kids_db()   # tabela kids no mesmo banco
 
     app = QApplication(sys.argv)
 
