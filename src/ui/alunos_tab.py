@@ -333,22 +333,13 @@ class AlunosTab(BaseTab):
         # Espaço antes do card
         root.addSpacing(15)
 
-        # Área para cards (centralizada)
+        # Área para cards (centralizada robustamente)
         self.cards_area = QWidget()
-        self.cards_layout = QHBoxLayout(self.cards_area)
-        self.cards_layout.setAlignment(Qt.AlignCenter)
-        self.cards_layout.setSpacing(20)
+        self.cards_layout = QVBoxLayout(self.cards_area)  # VBox para melhor controle
+        self.cards_layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)  # Topo e centro horizontal
+        self.cards_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Container dos cards inicialmente vazio
-        self.cards_container = QHBoxLayout()
-        self.cards_container.setAlignment(Qt.AlignCenter)
-        self.cards_container.setSpacing(20)
-        
-        self.cards_layout.addStretch()
-        self.cards_layout.addLayout(self.cards_container)
-        self.cards_layout.addStretch()
-        
-        root.addWidget(self.cards_area)
+        root.addWidget(self.cards_area, 0)  # Não expandir verticalmente
 
         # -------- BOTÕES --------
         self.btns = QHBoxLayout()
@@ -368,6 +359,10 @@ class AlunosTab(BaseTab):
         self.btns.addStretch()
 
         root.addLayout(self.btns)
+        
+        # Adicionar stretch no final para empurrar conteúdo para cima
+        root.addStretch()  # Empurra todo conteúdo para cima
+        
         self._toggle_acoes(False)
 
     def _btn(self, text):
@@ -582,12 +577,20 @@ class AlunosTab(BaseTab):
         # Limpar completamente tudo
         self.limpar_cards_completo()
         
-        # Container principal
-        container = QWidget()
-        container.setStyleSheet("background: transparent;")
+        # Container principal com centralização forçada
+        container_principal = QWidget()
+        container_principal.setStyleSheet("background: transparent;")
+        
+        # Layout horizontal para centralizar todo o organograma
+        layout_horizontal = QHBoxLayout(container_principal)
+        layout_horizontal.addStretch(1)  # Stretch à esquerda
+        
+        # Container do organograma
+        container_organograma = QWidget()
+        container_organograma.setStyleSheet("background: transparent;")
         
         # Layout vertical para organizar responsável e dependentes
-        layout_principal = QVBoxLayout(container)
+        layout_principal = QVBoxLayout(container_organograma)
         layout_principal.setSpacing(30)  # Espaço maior entre níveis
         layout_principal.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         
@@ -598,6 +601,8 @@ class AlunosTab(BaseTab):
         card_responsavel = AlunoCard()
         card_responsavel.set_dados(responsavel)
         card_responsavel.setVisible(True)
+        # Adicionar seleção ao card responsável
+        self.adicionar_selecao_card(card_responsavel, responsavel)
         
         # Adicionar indicador visual de que é o responsável
         card_responsavel.setStyleSheet(card_responsavel.styleSheet() + """
@@ -628,6 +633,8 @@ class AlunosTab(BaseTab):
                 card_dependente = AlunoCard()
                 card_dependente.set_dados(dependente)
                 card_dependente.setVisible(True)
+                # Adicionar seleção ao card dependente
+                self.adicionar_selecao_card(card_dependente, dependente)
                 
                 # Estilo diferenciado para dependentes
                 card_dependente.setStyleSheet(card_dependente.styleSheet() + """
@@ -641,31 +648,97 @@ class AlunosTab(BaseTab):
             
             layout_principal.addLayout(layout_dependentes)
         
+        # Adicionar o organograma ao layout horizontal centralizado
+        layout_horizontal.addWidget(container_organograma)
+        layout_horizontal.addStretch(1)  # Stretch à direita
+        
         # Adicionar à área de cards
-        self.cards_layout.addWidget(container)
+        self.cards_layout.addWidget(container_principal)
         
         # Mostrar área dos cards
         self.cards_area.setVisible(True)
         
-        # Responsável como aluno atual para ações
+        # Responsável como aluno atual inicial
         self.aluno_atual = responsavel
         self._toggle_acoes(True)
+
+    def adicionar_selecao_card(self, card, aluno_dados):
+        """Adiciona sistema de seleção ao card"""
+        # Estado inicial - não selecionado
+        card.selecionado = False
+        card.dados_aluno = aluno_dados
+        
+        # Estilo original do card
+        estilo_original = card.styleSheet()
+        
+        def selecionar_card():
+            # Limpar seleção de todos os outros cards
+            self.limpar_selecoes_cards()
+            
+            # Marcar este card como selecionado
+            card.selecionado = True
+            
+            # Aplicar estilo de selecionado
+            card.setStyleSheet(estilo_original + """
+                QFrame {
+                    border: 3px solid #e50914 !important;
+                    background: rgba(229,9,20,0.1) !important;
+                }
+            """)
+            
+            # Definir como aluno atual
+            self.aluno_atual = aluno_dados
+            self._toggle_acoes(True)
+        
+        def deselecionar_card():
+            card.selecionado = False
+            card.setStyleSheet(estilo_original)
+        
+        # Adicionar evento de clique
+        card.mousePressEvent = lambda event: selecionar_card()
+        card.deselecionar = deselecionar_card
+        
+        # Cursor de mão para indicar que é clicável
+        card.setCursor(Qt.PointingHandCursor)
+    
+    def limpar_selecoes_cards(self):
+        """Remove seleção de todos os cards"""
+        def limpar_widget_recursivo(widget):
+            if hasattr(widget, 'selecionado') and hasattr(widget, 'deselecionar'):
+                if widget.selecionado:
+                    widget.deselecionar()
+            
+            # Verificar filhos recursivamente
+            for child in widget.children():
+                if hasattr(child, 'children'):  # É um widget
+                    limpar_widget_recursivo(child)
+        
+        limpar_widget_recursivo(self.cards_area)
 
     def mostrar_todos_grid_centralizado(self, alunos_list):
         """Mostra todos os alunos em grid 2 colunas bem centralizado"""
         # Limpar completamente tudo
         self.limpar_cards_completo()
         
-        # Container principal FIXO sem scroll desnecessário
-        container = QWidget()
-        container.setStyleSheet("background: transparent;")
+        # Container principal com centralização forçada
+        container_principal = QWidget()
+        container_principal.setStyleSheet("background: transparent;")
         
-        # Layout em grid simples e centralizado
+        # Layout horizontal para centralizar o grid
+        layout_horizontal = QHBoxLayout(container_principal)
+        layout_horizontal.addStretch(1)  # Stretch à esquerda
+        
+        # Container do grid com largura fixa
+        container_grid = QWidget()
+        container_grid.setFixedWidth(850)  # Largura fixa para centralizar
+        container_grid.setStyleSheet("background: transparent;")
+        
+        # Layout em grid
         from PySide6.QtWidgets import QGridLayout
-        grid = QGridLayout(container)
-        grid.setSpacing(25)  # Espaço maior e mais organizado
-        grid.setAlignment(Qt.AlignCenter)  # Centralizado na tela
-        grid.setContentsMargins(50, 20, 50, 20)  # Margens adequadas
+        grid = QGridLayout(container_grid)
+        grid.setSpacing(25)  # Espaço entre cards
+        grid.setAlignment(Qt.AlignCenter)
+        grid.setContentsMargins(10, 10, 10, 10)
         
         # Adicionar cards em grid 2 colunas
         row = 0
@@ -675,6 +748,8 @@ class AlunosTab(BaseTab):
             card = AlunoCard()
             card.set_dados(aluno)
             card.setVisible(True)
+            # Adicionar sistema de seleção ao card
+            self.adicionar_selecao_card(card, aluno)
             
             grid.addWidget(card, row, col)
             
@@ -683,26 +758,24 @@ class AlunosTab(BaseTab):
                 col = 0
                 row += 1
         
-        # Apenas adicionar scroll se REALMENTE necessário (muitos alunos)
+        # Adicionar o grid ao layout horizontal centralizado
+        layout_horizontal.addWidget(container_grid)
+        layout_horizontal.addStretch(1)  # Stretch à direita
+        
+        # Scroll apenas se necessário
         if len(alunos_list) > 8:  # Mais de 4 linhas
             scroll_area = QScrollArea()
             scroll_area.setStyleSheet("background: transparent; border: none;")
             scroll_area.setWidgetResizable(True)
             scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            scroll_area.setWidget(container)
+            scroll_area.setWidget(container_principal)
             self.cards_layout.addWidget(scroll_area)
         else:
-            # Direto sem scroll para poucos alunos
-            self.cards_layout.addWidget(container)
+            self.cards_layout.addWidget(container_principal)
         
         # Mostrar área dos cards
         self.cards_area.setVisible(True)
-        
-        # Primeiro aluno para ações
-        if alunos_list:
-            self.aluno_atual = alunos_list[0]
-            self._toggle_acoes(True)
 
     def organizar_resultado_hierarquico(self, alunos_encontrados):
         """Organiza os resultados: se há responsável com dependentes, mostra hierarquia"""
@@ -763,10 +836,6 @@ class AlunosTab(BaseTab):
                 child.widget().deleteLater()
             elif child.layout():
                 self.clear_layout(child.layout())
-        
-        # Recriar os stretches básicos
-        self.cards_layout.addStretch()
-        self.cards_layout.addStretch()
     
     def clear_layout(self, layout):
         """Limpa recursivamente um layout"""
@@ -792,15 +861,25 @@ class AlunosTab(BaseTab):
         # Limpar completamente tudo
         self.limpar_cards_completo()
         
-        # Container principal sem background
-        container = QWidget()
-        container.setStyleSheet("background: transparent;")
+        # Container principal com centralização forçada
+        container_principal = QWidget()
+        container_principal.setStyleSheet("background: transparent;")
+        
+        # Layout horizontal para centralizar o grid
+        layout_horizontal = QHBoxLayout(container_principal)
+        layout_horizontal.addStretch(1)  # Stretch à esquerda
+        
+        # Container do grid com largura fixa
+        container_grid = QWidget()
+        container_grid.setFixedWidth(850)  # Largura fixa para centralizar
+        container_grid.setStyleSheet("background: transparent;")
         
         # Layout em grid
         from PySide6.QtWidgets import QGridLayout
-        grid = QGridLayout(container)
-        grid.setSpacing(15)  # Espaçamento entre cards
-        grid.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        grid = QGridLayout(container_grid)
+        grid.setSpacing(20)  # Espaçamento entre cards
+        grid.setAlignment(Qt.AlignCenter)
+        grid.setContentsMargins(10, 10, 10, 10)
         
         # Adicionar cards em grid 2 colunas
         row = 0
@@ -810,6 +889,8 @@ class AlunosTab(BaseTab):
             card = AlunoCard()
             card.set_dados(aluno)
             card.setVisible(True)
+            # Adicionar sistema de seleção ao card
+            self.adicionar_selecao_card(card, aluno)
             
             # Adicionar no grid (2 colunas)
             grid.addWidget(card, row, col)
@@ -819,16 +900,15 @@ class AlunosTab(BaseTab):
                 col = 0
                 row += 1
         
-        # Adicionar o container na área de cards
-        self.cards_layout.addWidget(container)
+        # Adicionar o grid ao layout horizontal centralizado
+        layout_horizontal.addWidget(container_grid)
+        layout_horizontal.addStretch(1)  # Stretch à direita
+        
+        # Adicionar à área de cards
+        self.cards_layout.addWidget(container_principal)
         
         # Mostrar área dos cards
         self.cards_area.setVisible(True)
-        
-        # Atualizar botões de ação para o primeiro aluno
-        if alunos_list:
-            self.aluno_atual = alunos_list[0]
-            self._toggle_acoes(True)
 
     def buscar(self):
         termo = self.busca.text().lower().strip()
