@@ -19,6 +19,17 @@ class CadastroAlunoTab(BaseTab):
         self.refresh_callback = refresh_callback
         self.foto_path = None
         self.certificado_path = None
+
+        # listas de faixas
+        self.faixas_adulto = ["Branca", "Azul", "Roxa", "Marrom", "Preta"]
+        self.faixas_kids = [
+            "Branca",
+            "Cinza c/b", "Cinza", "Cinza c/p",
+            "Amarela c/b", "Amarela", "Amarela c/p",
+            "Laranja c/b", "Laranja", "Laranja c/p",
+            "Verde c/b", "Verde", "Verde c/p"
+        ]
+
         self.build_ui()
 
     # -------------------------------------------------
@@ -91,7 +102,6 @@ class CadastroAlunoTab(BaseTab):
         title.setStyleSheet("color:white;font-size:22px;font-weight:bold;")
         form.addWidget(title, alignment=Qt.AlignLeft)
 
-        # -------- LEGENDA CAMPOS OBRIGATÓRIOS --------
         legenda = QLabel("* Campos obrigatórios")
         legenda.setStyleSheet("color:#ff6666;font-size:11px;font-style:italic;margin-bottom:10px;")
         form.addWidget(legenda, alignment=Qt.AlignLeft)
@@ -100,6 +110,7 @@ class CadastroAlunoTab(BaseTab):
         self.chk_kids = QCheckBox("Aluno Kids (menor de 16)")
         self.chk_kids.setStyleSheet("color:white;font-weight:bold;")
         self.chk_kids.stateChanged.connect(self.toggle_responsavel)
+        self.chk_kids.stateChanged.connect(self.atualizar_faixas)
         form.addWidget(self.chk_kids)
 
         # -------- NOME --------
@@ -109,7 +120,7 @@ class CadastroAlunoTab(BaseTab):
         self.nome.setStyleSheet(input_style)
         form.addLayout(row("Nome:", self.nome))
 
-        # -------- CPF (OPCIONAL PARA KIDS) --------
+        # -------- CPF --------
         self.cpf = QLineEdit()
         self.cpf.setInputMask("000.000.000-00")
         self.cpf.setPlaceholderText("Opcional para Kids - será gerado automaticamente se vazio")
@@ -117,7 +128,7 @@ class CadastroAlunoTab(BaseTab):
         self.cpf.setStyleSheet(input_style)
         form.addLayout(row("CPF:", self.cpf))
 
-        # -------- RESPONSÁVEL (KIDS) --------
+        # -------- RESPONSÁVEL --------
         self.resp_wrap = QWidget()
         resp_layout = QVBoxLayout(self.resp_wrap)
         resp_layout.setContentsMargins(0, 0, 0, 0)
@@ -180,7 +191,7 @@ class CadastroAlunoTab(BaseTab):
 
         # -------- FAIXA / GRAU --------
         self.faixa = QComboBox()
-        self.faixa.addItems(["Branca", "Azul", "Roxa", "Marrom", "Preta"])
+        self.faixa.addItems(self.faixas_adulto)
         self.faixa.setFixedWidth(MINI_W)
         self.faixa.setStyleSheet(input_style)
 
@@ -227,11 +238,28 @@ class CadastroAlunoTab(BaseTab):
             "Família: 1 adulto + 1 kids - R$300",
             "Família: 2 adultos + 1 kids - R$450",
             "Família: 1 adulto + 2 kids - R$430",
-            "Família: 1 adulto + 3 kids - R$500"
+            "Família: 1 adulto + 3 kids - R$500",
+            "Plano Personalizado",
+            "Plano Bolsista (Patrocinado)"
         ])
         self.plano.setFixedWidth(INPUT_W)
         self.plano.setStyleSheet(input_style)
+        self.plano.currentTextChanged.connect(self.toggle_plano_personalizado)
         form.addLayout(row("Plano:", self.plano))
+
+        # campo valor personalizado
+        self.valor_personalizado = QLineEdit()
+        self.valor_personalizado.setPlaceholderText("Digite o valor (ex: 99.90)")
+        self.valor_personalizado.setFixedWidth(MINI_W)
+        self.valor_personalizado.setStyleSheet(input_style)
+
+        self.valor_plano_wrap = QWidget()
+        vpl = QHBoxLayout(self.valor_plano_wrap)
+        vpl.setContentsMargins(0, 0, 0, 0)
+        vpl.addLayout(row("Valor do Plano:", self.valor_personalizado))
+
+        form.addWidget(self.valor_plano_wrap)
+        self.valor_plano_wrap.setVisible(False)
 
         # -------- ARQUIVOS --------
         self.foto_label = QLabel()
@@ -271,9 +299,20 @@ class CadastroAlunoTab(BaseTab):
 
     # -------------------------------------------------
 
+    def atualizar_faixas(self):
+        self.faixa.clear()
+        if self.chk_kids.isChecked():
+            self.faixa.addItems(self.faixas_kids)
+        else:
+            self.faixa.addItems(self.faixas_adulto)
+
+    def toggle_plano_personalizado(self):
+        texto = self.plano.currentText()
+        mostrar = texto == "Plano Personalizado"
+        self.valor_plano_wrap.setVisible(mostrar)
+
+
     def limpar_formulario(self):
-        """Limpa todos os campos do formulário após salvar"""
-        # Campos principais
         self.nome.clear()
         self.cpf.clear()
         self.email.clear()
@@ -282,33 +321,51 @@ class CadastroAlunoTab(BaseTab):
         self.endereco.clear()
         self.peso.clear()
         self.altura.clear()
-        
-        # Campos do responsável
         self.resp_nome.clear()
         self.resp_cpf.clear()
-        
-        # Resetar comboboxes para primeira opção
         self.faixa.setCurrentIndex(0)
         self.grau.setCurrentIndex(0)
         self.plano.setCurrentIndex(0)
-        
-        # Resetar data para hoje
+        self.valor_personalizado.clear()
         self.data_input.setDate(QDate.currentDate())
-        
-        # Resetar checkbox kids
         self.chk_kids.setChecked(False)
-        
-        # Limpar foto e certificado
         self.foto_path = None
         self.certificado_path = None
         self.foto_label.clear()
         self.foto_label.setStyleSheet("background:#222;border-radius:8px;")
-        
-        # Esconder seção do responsável
         self.resp_wrap.setVisible(False)
 
     def toggle_responsavel(self):
-        self.resp_wrap.setVisible(self.chk_kids.isChecked())
+        is_kid = self.chk_kids.isChecked()
+        self.resp_wrap.setVisible(is_kid)
+
+        self.plano.blockSignals(True)
+        self.plano.clear()
+
+        if is_kid:
+            self.plano.addItems([
+                "Kids (5–13) - R$150",
+                "Plano Personalizado",
+                "Plano Bolsista (Patrocinado)"
+            ])
+        else:
+            self.plano.addItems([
+                "Adulto - R$180",
+                "Kids (5–13) - R$150",
+                "Família: 2 adultos - R$320",
+                "Família: 1 adulto + 1 kids - R$300",
+                "Família: 2 adultos + 1 kids - R$450",
+                "Família: 1 adulto + 2 kids - R$430",
+                "Família: 1 adulto + 3 kids - R$500",
+                "Plano Personalizado",
+                "Plano Bolsista (Patrocinado)"
+            ])
+
+        self.plano.setCurrentIndex(0)
+        self.plano.blockSignals(False)
+
+        self.toggle_plano_personalizado()
+
 
     def selecionar_foto(self):
         file, _ = QFileDialog.getOpenFileName(self, "Selecionar Foto", "", "Imagens (*.png *.jpg *.jpeg)")
@@ -321,6 +378,18 @@ class CadastroAlunoTab(BaseTab):
         file, _ = QFileDialog.getOpenFileName(self, "Selecionar Certificado", "", "PDF (*.pdf)")
         if file:
             self.certificado_path = file
+            
+    def confirmar_salvamento(self):
+        dlg = AppDialog(
+            "Confirmar Cadastro",
+            "Confira se todos os dados estão corretos.\n\nDeseja salvar o cadastro?",
+            ("Cancelar", "Confirmar"),
+            self
+        )
+        dlg.exec()
+        return dlg.clicked
+
+
 
     # -------------------------------------------------
 
@@ -338,7 +407,19 @@ class CadastroAlunoTab(BaseTab):
         altura = self.altura.text().strip()
         faixa = self.faixa.currentText()
         grau = self.grau.currentText()
-        plano = self.plano.currentText()
+
+        plano_texto = self.plano.currentText()
+        if plano_texto == "Plano Personalizado":
+            valor = self.valor_personalizado.text().strip()
+            if not valor:
+                AppDialog("Atenção", "Informe o valor do plano personalizado.", ("OK",), self).exec()
+                return
+            plano = f"Personalizado - R${valor}"
+        elif plano_texto == "Plano Bolsista (Patrocinado)":
+            plano = "Bolsista - R$0"
+        else:
+            plano = plano_texto
+
         data_nasc = self.data_input.date().toString("yyyy-MM-dd")
 
         is_kid = self.chk_kids.isChecked()
@@ -347,69 +428,33 @@ class CadastroAlunoTab(BaseTab):
             AppDialog("Atenção", "Nome obrigatório.", ("OK",), self).exec()
             return
 
-        # Validar telefone obrigatório
         if len(telefone) < 10:
-            AppDialog("Atenção", "Telefone obrigatório (mínimo 10 dígitos).", ("OK",), self).exec()
+            AppDialog("Atenção", "Telefone obrigatório.", ("OK",), self).exec()
             return
 
-        # Validar CEP obrigatório
         if len(cep) != 8:
-            AppDialog("Atenção", "CEP obrigatório (8 dígitos).", ("OK",), self).exec()
+            AppDialog("Atenção", "CEP obrigatório.", ("OK",), self).exec()
             return
 
-        # Validar endereço obrigatório
         if not endereco:
             AppDialog("Atenção", "Endereço obrigatório.", ("OK",), self).exec()
             return
 
-        # Validar data de nascimento (não pode ser futura)
         data_atual = QDate.currentDate()
         if self.data_input.date() > data_atual:
-            AppDialog("Atenção", "Data de nascimento não pode ser futura.", ("OK",), self).exec()
+            AppDialog("Atenção", "Data de nascimento inválida.", ("OK",), self).exec()
             return
 
-        # Validar se não é muito antiga (mais de 100 anos)
-        if self.data_input.date().addYears(100) < data_atual:
-            AppDialog("Atenção", "Data de nascimento inválida (mais de 100 anos).", ("OK",), self).exec()
-            return
-
-        # Validar faixa e plano (não devem estar vazios)
-        if not faixa or faixa == "":
+        if not faixa:
             AppDialog("Atenção", "Faixa obrigatória.", ("OK",), self).exec()
             return
 
-        if not plano or plano == "":
+        if not plano:
             AppDialog("Atenção", "Plano obrigatório.", ("OK",), self).exec()
             return
 
-        # ===== ADULTO =====
-        if not is_kid:
-            # Validar idade para adultos (mínimo 16 anos)
-            data_nasc_date = self.data_input.date()
-            idade = data_atual.year() - data_nasc_date.year()
-            if data_atual < data_nasc_date.addYears(idade):
-                idade -= 1
-            
-            if idade < 16:
-                AppDialog("Atenção", "Alunos adultos devem ter pelo menos 16 anos.", ("OK",), self).exec()
-                return
-                
-            if not cpf or len(cpf) != 11:
-                AppDialog("Atenção", "CPF inválido.", ("OK",), self).exec()
-                return
-
         # ===== KIDS =====
         if is_kid:
-            # Validar idade para Kids (5-16 anos)
-            data_nasc_date = self.data_input.date()
-            idade = data_atual.year() - data_nasc_date.year()
-            if data_atual < data_nasc_date.addYears(idade):
-                idade -= 1
-            
-            if idade < 5 or idade > 16:
-                AppDialog("Atenção", "Alunos Kids devem ter entre 5 e 16 anos.", ("OK",), self).exec()
-                return
-            
             resp_nome = self.resp_nome.text().strip()
             resp_cpf = "".join(filter(str.isdigit, self.resp_cpf.text()))
 
@@ -421,19 +466,47 @@ class CadastroAlunoTab(BaseTab):
                 AppDialog("Erro", "CPF do aluno já cadastrado (Kids).", ("OK",), self).exec()
                 return
 
-            try:
-                inserir_kid(
-                    nome, cpf, resp_nome, resp_cpf, email,
-                    telefone, cep, endereco,
-                    data_nasc, faixa, grau, peso, altura,
-                    plano, self.foto_path, self.certificado_path
+            vincular_responsavel = False
+
+            # se responsável já existir, perguntar se deseja vincular
+            if cpf_existe(resp_cpf):
+                dlg = AppDialog(
+                    "Responsável já cadastrado",
+                    "Este CPF de responsável já possui cadastro.\n\n"
+                    "Deseja vincular este aluno a esse responsável?",
+                    ("Não vincular", "Vincular"),
+                    self
                 )
-            except Exception as e:
-                AppDialog("Erro", f"Erro ao cadastrar aluno: {str(e)}", ("OK",), self).exec()
+                dlg.exec()
+
+                if dlg.clicked == "Vincular":
+                    vincular_responsavel = True
+
+
+    # se vinculou, plano fica controlado pelo responsável
+            if vincular_responsavel:
+                plano_final = "Vinculado ao responsável"
+            else:
+                plano_final = plano  # usa Kids / Personalizado / Bolsista
+
+            if self.confirmar_salvamento() != "Confirmar":
                 return
+
+            inserir_kid(
+                nome, cpf, resp_nome, resp_cpf, email,
+                telefone, cep, endereco,
+                data_nasc, faixa, grau, peso, altura,
+                plano_final, self.foto_path, self.certificado_path
+            )
+
+
 
         # ===== ADULTO =====
         else:
+            if not cpf or len(cpf) != 11:
+                AppDialog("Atenção", "CPF inválido.", ("OK",), self).exec()
+                return
+
             if cpf_existe(cpf):
                 AppDialog("Erro", "CPF já cadastrado.", ("OK",), self).exec()
                 return
@@ -441,20 +514,17 @@ class CadastroAlunoTab(BaseTab):
             if email and email_existe(email):
                 AppDialog("Erro", "E-mail já cadastrado.", ("OK",), self).exec()
                 return
-
-            try:
-                inserir_aluno(
-                    nome, cpf, email, telefone, cep,
-                    endereco, data_nasc, faixa, grau, peso, altura,
-                    plano, self.foto_path, self.certificado_path
-                )
-            except Exception as e:
-                AppDialog("Erro", f"Erro ao cadastrar aluno: {str(e)}", ("OK",), self).exec()
+            
+            if self.confirmar_salvamento() != "Confirmar":
                 return
 
-        AppDialog("Sucesso", "Cadastro realizado com sucesso!", ("OK",), self).exec()
+            inserir_aluno(
+                nome, cpf, email, telefone, cep,
+                endereco, data_nasc, faixa, grau, peso, altura,
+                plano, self.foto_path, self.certificado_path
+            )
 
-        # Limpar formulário após salvar
+        AppDialog("Sucesso", "Cadastro realizado com sucesso!", ("OK",), self).exec()
         self.limpar_formulario()
 
         if self.refresh_callback:
