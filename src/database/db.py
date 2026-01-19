@@ -31,7 +31,7 @@ def init_db():
     if not cur.fetchone():
         cur.execute(
             "INSERT INTO users (username, password) VALUES (?,?)",
-            ("admin", "admin")
+            ("admin", "senha")
         )
 
     # ---- alunos adultos ----
