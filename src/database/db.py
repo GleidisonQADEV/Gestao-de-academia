@@ -115,6 +115,16 @@ def listar_alunos():
     return rows
 
 
+def listar_todos_alunos():
+    """Lista todos os alunos (ativos e inativos)"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM alunos ORDER BY nome")
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
 def excluir_aluno(aluno_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -123,10 +133,10 @@ def excluir_aluno(aluno_id):
     conn.close()
 
 
-def inativar_aluno(aluno_id):
+def inativar_aluno(aluno_id, novo_status=0):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("UPDATE alunos SET ativo=0 WHERE id=?", (aluno_id,))
+    cur.execute("UPDATE alunos SET ativo=? WHERE id=?", (novo_status, aluno_id))
     conn.commit()
     conn.close()
 

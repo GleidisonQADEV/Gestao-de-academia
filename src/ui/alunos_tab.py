@@ -1,13 +1,14 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QLineEdit, QMessageBox, QFrame, QDialog, QScrollArea, QSizePolicy
+    QLineEdit, QFrame, QDialog, QScrollArea, QSizePolicy
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QPalette, QBrush
 
 from ui.base_tab import BaseTab
-from database.db import listar_alunos, inativar_aluno, excluir_aluno
+from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos
 from database.kids_db import get_conn
+from ui.app_dialog import show_info, show_warning, show_error, show_question, show_custom
 
 # ================= ESTILOS CSS =================
 campo_nome_style = """
@@ -42,7 +43,7 @@ class AlunoCard(QFrame):
         self.build_ui()
 
     def build_ui(self):
-        self.setFixedSize(400, 280)  # Tamanho fixo igual para todos os cards
+        self.setFixedSize(450, 320)  # Aumentado de 420x300 para 450x320
         self.setStyleSheet("""
             QFrame {
                 background: rgba(255,255,255,0.1);
@@ -52,8 +53,8 @@ class AlunoCard(QFrame):
         """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(18, 15, 18, 15)  # Margens aumentadas
+        layout.setSpacing(12)  # Espaçamento aumentado
 
         # HEADER com foto e nome
         header = QHBoxLayout()
@@ -107,7 +108,7 @@ class AlunoCard(QFrame):
         
         # Coluna 1
         col1 = QVBoxLayout()
-        col1.setSpacing(4)
+        col1.setSpacing(8)  # Espaçamento aumentado para melhor distribuição
         
         self.lbl_cpf = QLabel("")
         self.lbl_cpf.setStyleSheet(campo_style)
@@ -129,7 +130,7 @@ class AlunoCard(QFrame):
         
         # Coluna 2
         col2 = QVBoxLayout()
-        col2.setSpacing(4)
+        col2.setSpacing(8)  # Espaçamento aumentado para melhor distribuição
         
         self.lbl_endereco = QLabel("")
         self.lbl_endereco.setStyleSheet(campo_style)
@@ -251,6 +252,39 @@ class AlunoCard(QFrame):
             self.foto.clear()
             self.foto.setText("🗄\nSem foto")
             self.foto.setStyleSheet(self.foto.styleSheet() + "color: #999; font-size: 11px; text-align: center;")
+            
+        # Aviso de vínculo para dependentes
+        self.mostrar_vinculo_dependentes(dados)
+            
+    def mostrar_vinculo_dependentes(self, dados):
+        """Adiciona aviso de vínculo se for dependente com outros dependentes"""
+        # Remover aviso anterior se existir
+        if hasattr(self, 'vinculo_widget'):
+            self.vinculo_widget.setParent(None)
+            delattr(self, 'vinculo_widget')
+            
+        if dados["tipo"] == "kids" and dados.get("responsavel_cpf"):
+            # Criar widget de vínculo mais compacto
+            self.vinculo_widget = QLabel()
+            self.vinculo_widget.setText("🔗 Vinculado - Clique para navegar")
+            self.vinculo_widget.setStyleSheet("""
+                QLabel {
+                    background-color: rgba(52, 152, 219, 0.15);
+                    color: #2980b9;
+                    border: 1px dashed #3498db;
+                    border-radius: 6px;
+                    padding: 2px 6px;
+                    font-size: 9px;
+                    margin: 1px 0px;
+                    max-height: 16px;
+                }
+            """)
+            self.vinculo_widget.hide()  # Inicialmente oculto
+            
+            # Adicionar ao layout de forma que não interfira com outros elementos
+            layout = self.layout()
+            # Inserir após o header mas antes dos dados
+            layout.insertWidget(2, self.vinculo_widget)
 
 
 # ================= TAB =================
@@ -394,7 +428,7 @@ class AlunosTab(BaseTab):
     def carregar_dados(self):
         self.registros.clear()
 
-        for a in listar_alunos():
+        for a in listar_todos_alunos():  # Agora lista TODOS (ativos e inativos)
             self.registros.append({
                 "tipo": "adulto",
                 "id": a[0],           # id
@@ -416,7 +450,7 @@ class AlunosTab(BaseTab):
 
         conn = get_conn()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM kids")
+        cur.execute("SELECT * FROM kids")  # Kids já lista todos
         kids = cur.fetchall()
         conn.close()
 
@@ -701,6 +735,27 @@ class AlunosTab(BaseTab):
         # Cursor de mão para indicar que é clicável
         card.setCursor(Qt.PointingHandCursor)
     
+    def selecionar_card(self, aluno_dados):
+        """Seleciona um card específico baseado nos dados do aluno"""
+        def encontrar_card_recursivo(widget):
+            # Verificar se é um card com dados do aluno
+            if hasattr(widget, 'dados_aluno') and hasattr(widget, 'mousePressEvent'):
+                if (widget.dados_aluno.get('id') == aluno_dados.get('id') and 
+                    widget.dados_aluno.get('tipo') == aluno_dados.get('tipo')):
+                    # Simular clique no card para selecioná-lo
+                    widget.mousePressEvent(None)
+                    return True
+            
+            # Procurar recursivamente nos filhos
+            if hasattr(widget, 'children'):
+                for child in widget.children():
+                    if encontrar_card_recursivo(child):
+                        return True
+            return False
+        
+        # Procurar o card na área de cards
+        encontrar_card_recursivo(self.cards_area)
+    
     def limpar_selecoes_cards(self):
         """Remove seleção de todos os cards"""
         def limpar_widget_recursivo(widget):
@@ -730,7 +785,7 @@ class AlunosTab(BaseTab):
         
         # Container do grid com largura fixa
         container_grid = QWidget()
-        container_grid.setFixedWidth(850)  # Largura fixa para centralizar
+        container_grid.setFixedWidth(960)  # Aumentado para acomodar cards de 450px
         container_grid.setStyleSheet("background: transparent;")
         
         # Layout em grid
@@ -750,6 +805,8 @@ class AlunosTab(BaseTab):
             card.setVisible(True)
             # Adicionar sistema de seleção ao card
             self.adicionar_selecao_card(card, aluno)
+            # Configurar vínculos para dependentes
+            self.configurar_vinculo_dependente(card, aluno)
             
             grid.addWidget(card, row, col)
             
@@ -807,24 +864,13 @@ class AlunosTab(BaseTab):
             # Mostrar resultado normal em grid
             alunos_ordenados = sorted(alunos_encontrados, key=lambda x: x["nome"].lower())
             self.mostrar_cards_grid(alunos_ordenados)
-            
-            # Adicionar no grid (2 colunas)
-            grid.addWidget(card, row, col)
-            
-            col += 1
-            if col >= 2:  # Máximo 2 colunas
-                col = 0
-                row += 1
-        
-        # Adicionar o container na área de cards
-        self.cards_layout.addWidget(container)
         
         # Mostrar área dos cards
         self.cards_area.setVisible(True)
         
         # Atualizar botões de ação para o primeiro aluno
-        if alunos_list:
-            self.aluno_atual = alunos_list[0]
+        if alunos_encontrados:
+            self.aluno_atual = alunos_encontrados[0]
             self._toggle_acoes(True)
     
     def limpar_cards_completo(self):
@@ -871,7 +917,7 @@ class AlunosTab(BaseTab):
         
         # Container do grid com largura fixa
         container_grid = QWidget()
-        container_grid.setFixedWidth(850)  # Largura fixa para centralizar
+        container_grid.setFixedWidth(960)  # Aumentado para acomodar cards de 450px
         container_grid.setStyleSheet("background: transparent;")
         
         # Layout em grid
@@ -891,6 +937,8 @@ class AlunosTab(BaseTab):
             card.setVisible(True)
             # Adicionar sistema de seleção ao card
             self.adicionar_selecao_card(card, aluno)
+            # Configurar vínculos para dependentes
+            self.configurar_vinculo_dependente(card, aluno)
             
             # Adicionar no grid (2 colunas)
             grid.addWidget(card, row, col)
@@ -939,25 +987,291 @@ class AlunosTab(BaseTab):
             # Verificar se encontrou um responsável que tem dependentes
             self.organizar_resultado_hierarquico(alunos_encontrados)
         else:
-            QMessageBox.information(self, "Não encontrado", "Aluno não localizado.")
+            show_info(self, "Não encontrado", "Aluno não localizado.")
             self.esconder_cards()
 
     def toggle_status(self):
-        if self.aluno_atual:
-            d = self.aluno_atual
-            novo = 0 if d["status"] else 1
-            inativar_aluno(d["id"], novo)
+        if not self.aluno_atual:
+            show_warning(self, "Erro", "Nenhum aluno selecionado!")
+            return
+            
+        d = self.aluno_atual
+        nome = d["nome"]
+        status_atual = "ATIVO" if d["status"] else "INATIVO"
+        novo_status_texto = "INATIVO" if d["status"] else "ATIVO"
+        
+        # REGRA DE NEGÓCIO: Verificar dependentes ao inativar responsável
+        dependentes_afetados = []
+        if d["tipo"] == "adulto" and d["status"]:  # Se está inativando um adulto que está ATIVO
+            # Procurar dependentes deste responsável
+            for registro in self.registros:
+                if (registro["tipo"] == "kids" and 
+                    registro.get("responsavel_cpf") == d["cpf"]):
+                    dependentes_afetados.append(registro)
+        
+        # Confirmação diferenciada se há dependentes afetados
+        if dependentes_afetados and novo_status_texto == "INATIVO":
+            # ALERTA ESPECIAL PARA RESPONSÁVEL COM DEPENDENTES
+            mensagem_dependentes = f"Este responsável possui {len(dependentes_afetados)} dependente(s).\n\n"
+            mensagem_dependentes += "📋 IMPLICAÇÕES DA INATIVAÇÃO:\n"
+            mensagem_dependentes += "• Os planos dos dependentes podem precisar ser ajustados\n"
+            mensagem_dependentes += "• Considere transferir a responsabilidade para outro adulto\n"
+            mensagem_dependentes += "• Ou revisar a situação financeira dos dependentes\n\n"
+            mensagem_dependentes += "⚠️ Os dependentes permanecerão ATIVOS após esta inativação."
+            
+            # Confirmação simples com aviso
+            if show_question(
+                self,
+                f"🚨 Inativação de Responsável - {nome}",
+                mensagem_dependentes,
+                "Inativar Responsável", "Cancelar"
+            ):
+                self.executar_inativacao(d)
+                show_info(
+                    self, 
+                    "Responsável Inativado", 
+                    f"✅ Responsável {nome} inativado.\n\n📝 Lembrete: Revisar planos dos {len(dependentes_afetados)} dependente(s)."
+                )
+            else:
+                return
+        else:
+            # Confirmação normal (sem dependentes ou reativando)
+            if show_question(
+                self, 
+                "Confirmar Alteração", 
+                f"Aluno: {nome}\nStatus atual: {status_atual}\n\nDeseja alterar para {novo_status_texto}?",
+                "Sim", "Não"
+            ):
+                self.executar_inativacao(d)
+                show_info(
+                    self, 
+                    "Sucesso", 
+                    f"Status do aluno {nome} alterado para {novo_status_texto}!"
+                )
+        
+        # Recarregar dados e manter pesquisa
+        termo_atual = self.busca.text()
+        if termo_atual:
             self.buscar()
+        else:
+            self.esconder_cards()
+    
+    def executar_inativacao(self, dados_aluno):
+        """Executa a inativação/ativação do aluno no banco de dados"""
+        try:
+            novo_status = 0 if dados_aluno["status"] else 1
+            
+            if dados_aluno["tipo"] == "adulto":
+                # Alterar status no banco adultos
+                inativar_aluno(dados_aluno["id"], novo_status)
+            else:
+                # Alterar status no banco kids
+                conn = get_conn()
+                cur = conn.cursor()
+                cur.execute("UPDATE kids SET ativo=? WHERE id=?", (novo_status, dados_aluno["id"]))
+                conn.commit()
+                conn.close()
+                
+        except Exception as e:
+            show_error(
+                self, 
+                "Erro", 
+                f"Erro ao alterar status: {str(e)}"
+            )
 
     def excluir(self):
-        if self.aluno_atual:
-            d = self.aluno_atual
-            if QMessageBox.question(self, "Confirmar", "Excluir aluno?") == QMessageBox.Yes:
+        if not self.aluno_atual:
+            show_warning(self, "Erro", "Nenhum aluno selecionado!")
+            return
+            
+        d = self.aluno_atual
+        nome = d["nome"]
+        tipo = "Adulto" if d["tipo"] == "adulto" else "Criança"
+        
+        # Verificar se é responsável com dependentes
+        tem_dependentes = False
+        if d["tipo"] == "adulto":
+            for registro in self.registros:
+                if (registro["tipo"] == "kids" and 
+                    registro.get("responsavel_cpf") == d["cpf"]):
+                    tem_dependentes = True
+                    break
+        
+        # Mensagem de confirmação mais detalhada
+        mensagem = f"ATENÇÃO: Esta ação não pode ser desfeita!\n\n"
+        mensagem += f"Aluno: {nome}\n"
+        mensagem += f"Tipo: {tipo}\n"
+        
+        if tem_dependentes:
+            mensagem += f"\n⚠️  CUIDADO: Este responsável possui dependentes cadastrados!\n"
+            mensagem += f"A exclusão pode afetar os registros dos dependentes.\n"
+        
+        mensagem += f"\nDeseja realmente EXCLUIR este aluno?"
+        
+        resposta = show_question(
+            self, 
+            "🗑️  Confirmar Exclusão", 
+            mensagem,
+            "Sim, Excluir", "Não, Cancelar"
+        )
+        
+        if not resposta:
+            return
+            
+        try:
+            if d["tipo"] == "adulto":
                 excluir_aluno(d["id"])
-                self.esconder_cards()
+            else:
+                # Excluir do banco kids
+                conn = get_conn()
+                cur = conn.cursor()
+                cur.execute("DELETE FROM kids WHERE id=?", (d["id"],))
+                conn.commit()
+                conn.close()
+            
+            # Feedback de sucesso
+            show_info(
+                self, 
+                "Sucesso", 
+                f"Aluno {nome} foi excluído com sucesso!"
+            )
+            
+            # Limpar seleção e esconder cards
+            self.aluno_atual = None
+            self.esconder_cards()
+            
+            # Se havia uma pesquisa, refazer para atualizar resultados
+            termo_atual = self.busca.text()
+            if termo_atual and termo_atual.lower() != "todos":
+                self.buscar()
+                
+        except Exception as e:
+            show_error(
+                self, 
+                "Erro", 
+                f"Erro ao excluir aluno: {str(e)}"
+            )
+
+                
+    def sincronizar_planos_dependentes(self, responsavel_cpf, novo_plano, aluno_origem_id):
+        """Sincroniza o plano entre todos os dependentes do mesmo responsável"""
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            
+            # Buscar todos os dependentes do mesmo responsável
+            cur.execute(
+                "SELECT id, nome FROM kids WHERE responsavel_cpf=? AND ativo=1 AND id!=?",
+                (responsavel_cpf, aluno_origem_id)
+            )
+            outros_dependentes = cur.fetchall()
+            
+            if len(outros_dependentes) > 0:
+                # Perguntar se quer sincronizar
+                nomes = [dep[1] for dep in outros_dependentes]
+                mensagem = f"Este responsável possui outros {len(outros_dependentes)} dependente(s):\n\n"
+                mensagem += "\n".join([f"• {nome}" for nome in nomes])
+                mensagem += f"\n\nDeseja aplicar o mesmo plano ({novo_plano}) para todos os dependentes?"
+                
+                if show_question(
+                    self,
+                    "🔄 Sincronizar Planos",
+                    mensagem,
+                    "Sim, Sincronizar", "Não"
+                ):
+                    # Atualizar todos os outros dependentes
+                    cur.execute(
+                        "UPDATE kids SET plano=? WHERE responsavel_cpf=? AND ativo=1 AND id!=?",
+                        (novo_plano, responsavel_cpf, aluno_origem_id)
+                    )
+                    
+                    conn.commit()
+                    
+                    show_info(
+                        self,
+                        "Planos Sincronizados",
+                        f"🔄 {len(outros_dependentes)} dependente(s) tiveram seus planos sincronizados para: {novo_plano}"
+                    )
+                    
+                    # Recarregar dados para mostrar as mudanças
+                    self.carregar_dados()
+            
+            conn.close()
+                    
+        except Exception as e:
+            show_error(self, "Erro de Sincronização", f"Erro ao sincronizar planos: {str(e)}")
+        
+    def obter_outros_dependentes(self, responsavel_cpf, excluir_id):
+        """Obtém outros dependentes do mesmo responsável"""
+        outros_dependentes = []
+        for registro in self.registros:
+            if (registro.get("tipo") == "kids" and 
+                registro.get("responsavel_cpf") == responsavel_cpf and
+                registro.get("id") != excluir_id):
+                outros_dependentes.append(registro)
+        return outros_dependentes
+        
+    def configurar_vinculo_dependente(self, card, dados):
+        """Configura o aviso de vínculo para dependentes"""
+        if dados["tipo"] == "kids" and dados.get("responsavel_cpf"):
+            outros_dependentes = self.obter_outros_dependentes(
+                dados["responsavel_cpf"], 
+                dados["id"]
+            )
+            
+            if len(outros_dependentes) > 0 and hasattr(card, 'vinculo_widget'):
+                # Atualizar o texto do aviso de forma mais compacta
+                card.vinculo_widget.setText(
+                    f"🔗 +{len(outros_dependentes)} dependente(s) - Clique aqui"
+                )
+                card.vinculo_widget.show()
+                
+                # Tornar clicável
+                card.vinculo_widget.mousePressEvent = lambda event: self.mostrar_opcoes_dependentes(
+                    dados, outros_dependentes
+                )
+                card.vinculo_widget.setCursor(Qt.PointingHandCursor)
+                
+    def mostrar_opcoes_dependentes(self, dados_atual, outros_dependentes):
+        """Mostra opções para navegar entre dependentes"""
+        nomes = [dep["nome"] for dep in outros_dependentes]
+        # Criar botões com texto padronizado para evitar corte
+        botoes_dependentes = [f"Ver Dependente {i+1}" for i in range(len(outros_dependentes))]
+        
+        escolha = show_custom(
+            self,
+            f"🔗 Dependentes Vinculados - {dados_atual['nome']}",
+            f"Este aluno está vinculado aos seguintes dependentes:\n\n" + 
+            "\n".join([f"• {nome}" for nome in nomes]) +
+            "\n\nQual dependente deseja visualizar?",
+            tuple(botoes_dependentes + ["Cancelar"])
+        )
+        
+        if escolha != "Cancelar":
+            # Encontrar o dependente escolhido pelo índice do botão
+            for i, botao in enumerate(botoes_dependentes):
+                if escolha == botao:
+                    dep = outros_dependentes[i]
+                    
+                    # Verificar o contexto atual para decidir a ação
+                    termo_busca = self.busca.text().lower().strip()
+                    
+                    if termo_busca == "todos":
+                        # Se está na tela "todos", tentar selecionar o dependente
+                        try:
+                            self.selecionar_card(dep)
+                        except:
+                            # Se falhar, fazer busca pelo nome como fallback
+                            self.busca.setText(dep["nome"])
+                            self.buscar()
+                    else:
+                        # Se está em busca específica, buscar pelo nome do dependente
+                        self.busca.setText(dep["nome"])
+                        self.buscar()
+                    break
 
     def editar(self):
-        QMessageBox.information(self, "Em breve", "Tela de edição completa será o próximo passo.")
+        show_info(self, "Em breve", "Tela de edição completa será o próximo passo.")
 
     def _btn(self, text):
         """Cria um botão com estilo padrão"""

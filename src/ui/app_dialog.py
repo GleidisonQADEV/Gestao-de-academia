@@ -21,12 +21,12 @@ class AppDialog(QDialog):
 
         # ----- CARD -----
         card = QFrame()
-        card.setFixedSize(360, 360)
         card.setStyleSheet("background:white;border-radius:18px;")
 
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setContentsMargins(25, 25, 25, 25)
         card_layout.setSpacing(16)
+        card_layout.setAlignment(Qt.AlignCenter)
 
         # ----- LOGO -----
         logo = QLabel()
@@ -43,24 +43,32 @@ class AppDialog(QDialog):
         text = QLabel(message)
         text.setWordWrap(True)
         text.setAlignment(Qt.AlignCenter)
-        text.setStyleSheet("font-size:14px;color:#111;")
+        text.setStyleSheet("font-size:14px;color:#111;line-height:1.5;padding:15px;")
+        text.setMinimumWidth(350)
+        text.setMaximumWidth(500)
 
         # ----- BOTÕES -----
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
+        btn_layout.setAlignment(Qt.AlignCenter)
 
         for b in buttons:
             btn = QPushButton(b)
-            btn.setFixedHeight(42)
+            btn.setFixedHeight(45)  # Mesma altura do botão de login
             btn.setCursor(Qt.PointingHandCursor)
             btn.setStyleSheet("""
                 QPushButton {
-                    background-color:#b00020;
-                    color:white;
-                    border-radius:12px;
-                    font-weight:bold;
+                    background-color: #b00020;
+                    color: white;
+                    border-radius: 12px;
+                    font-size: 15px;
+                    font-weight: bold;
+                    padding: 8px 16px;
+                    min-width: 100px;
                 }
-                QPushButton:hover { background:#8c001a; }
+                QPushButton:hover {
+                    background-color: #8c001a;
+                }
             """)
             btn.clicked.connect(lambda _, x=b: self._click(x))
             btn_layout.addWidget(btn)
@@ -72,7 +80,55 @@ class AppDialog(QDialog):
         card_layout.addLayout(btn_layout)
 
         main.addWidget(card)
+        
+        # Redimensionamento simples e eficaz
+        self.adjustSize()
+        
+        # Garantir tamanho mínimo adequate
+        if self.width() < 450:
+            self.resize(450, self.height())
+        if self.height() < 200:
+            self.resize(self.width(), 200)
+            
+        # Limitar tamanho máximo
+        if self.width() > 700:
+            self.resize(700, self.height())
+        if self.height() > 600:
+            self.resize(self.width(), 600)
 
     def _click(self, value):
         self.clicked = value
         self.accept()
+
+
+# ================= FUNÇÕES AUXILIARES =================
+
+def show_info(parent, title, message):
+    """Mostra diálogo de informação"""
+    dialog = AppDialog(title, message, ("OK",), parent)
+    dialog.exec()
+    return dialog.clicked
+
+def show_warning(parent, title, message):
+    """Mostra diálogo de aviso"""
+    dialog = AppDialog(f"⚠️  {title}", message, ("OK",), parent)
+    dialog.exec()
+    return dialog.clicked
+
+def show_error(parent, title, message):
+    """Mostra diálogo de erro"""
+    dialog = AppDialog(f"❌ {title}", message, ("OK",), parent)
+    dialog.exec()
+    return dialog.clicked
+
+def show_question(parent, title, message, yes_text="Sim", no_text="Não"):
+    """Mostra diálogo de pergunta com opções sim/não"""
+    dialog = AppDialog(f"❓ {title}", message, (yes_text, no_text), parent)
+    dialog.exec()
+    return dialog.clicked == yes_text
+
+def show_custom(parent, title, message, buttons):
+    """Mostra diálogo customizado com botões específicos"""
+    dialog = AppDialog(title, message, buttons, parent)
+    dialog.exec()
+    return dialog.clicked

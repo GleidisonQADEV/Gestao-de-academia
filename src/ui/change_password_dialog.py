@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
+    QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton
 )
+from .app_dialog import show_warning, show_info
 from database.db import connect
 
 
@@ -34,7 +35,7 @@ class ChangePasswordDialog(QDialog):
 
     def alterar(self):
         if self.nova.text() != self.conf.text():
-            QMessageBox.warning(self, "Erro", "As senhas não conferem")
+            show_warning(self, "Erro", "As senhas não conferem")
             return
 
         conn = connect()
@@ -46,7 +47,7 @@ class ChangePasswordDialog(QDialog):
         )
 
         if not cur.fetchone():
-            QMessageBox.warning(self, "Erro", "Senha atual incorreta")
+            show_warning(self, "Erro", "Senha atual incorreta")
             conn.close()
             return
 
@@ -58,5 +59,5 @@ class ChangePasswordDialog(QDialog):
         conn.commit()
         conn.close()
 
-        QMessageBox.information(self, "OK", "Senha alterada com sucesso")
+        show_info(self, "OK", "Senha alterada com sucesso")
         self.close()
