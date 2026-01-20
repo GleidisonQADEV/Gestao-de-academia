@@ -83,6 +83,32 @@ def init_db():
             FOREIGN KEY (aluno_id) REFERENCES alunos (id)
         )
     """)
+    
+    # ---- tabela planos ----
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS planos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL UNIQUE,
+            valor REAL NOT NULL,
+            ativo INTEGER DEFAULT 1,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Inserir planos padrão se a tabela estiver vazia
+    cur.execute("SELECT COUNT(*) FROM planos")
+    if cur.fetchone()[0] == 0:
+        planos_padrao = [
+            ("Adulto", 180.0),
+            ("Kids (5-13)", 150.0),
+            ("Família: 2 adultos", 320.0),
+            ("Família: 1 adulto + 1 kids", 300.0),
+            ("Família: 2 adultos + 1 kids", 450.0),
+            ("Família: 1 adulto + 2 kids", 430.0),
+            ("Família: 1 adulto + 3 kids", 500.0),
+            ("Plano Bolsista (Patrocinado)", 0.0)
+        ]
+        cur.executemany("INSERT INTO planos (nome, valor) VALUES (?, ?)", planos_padrao)
 
     conn.commit()
     conn.close()
@@ -379,3 +405,66 @@ def obter_mensalidades_pendentes():
 def gerar_mensalidades_automaticas():
     """FUNÇÃO DESABILITADA - usar sistema automático da UI"""
     return 0
+
+
+# ================= GERENCIAMENTO DE PLANOS =================
+
+def listar_planos():
+    """Lista todos os planos ativos"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, nome, valor FROM planos WHERE ativo = 1 ORDER BY nome")
+    planos = cur.fetchall()
+    conn.close()
+    return planos
+
+def criar_plano(nome, valor):
+    """Cria um novo plano"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO planos (nome, valor) VALUES (?, ?)", (nome, valor))
+    conn.commit()
+    conn.close()
+
+def atualizar_plano(plano_id, nome, valor):
+    """Atualiza um plano existente"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE planos SET nome = ?, valor = ? WHERE id = ?", (nome, valor, plano_id))
+    conn.commit()
+    conn.close()
+
+def excluir_plano(plano_id):
+    """Exclui (desativa) um plano"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE planos SET ativo = 0 WHERE id = ?", (plano_id,))
+    conn.commit()
+    conn.close()
+
+def plano_existe(nome, plano_id=None):
+    """Verifica se já existe um plano com o mesmo nome"""
+    conn = get_conn()
+    cur = conn.cursor()
+    if plano_id:
+        cur.execute("SELECT id FROM planos WHERE nome = ? AND id != ? AND ativo = 1", (nome, plano_id))
+    else:
+        cur.execute("SELECT id FROM planos WHERE nome = ? AND ativo = 1", (nome,))
+    resultado = cur.fetchone()
+    conn.close()
+    return resultado is not None
+
+def get_planos_formatados():
+    """Retorna planos formatados para uso no ComboBox"""
+    planos = listar_planos()
+    planos_formatados = []
+    for plano_id, nome, valor in planos:
+        if valor == 0:
+            planos_formatados.append(f"{nome}")
+        else:
+            planos_formatados.append(f"{nome} - R${valor:.0f}")
+    
+    # Adicionar opção personalizada
+    planos_formatados.append("Plano Personalizado")
+    
+    return planos_formatados

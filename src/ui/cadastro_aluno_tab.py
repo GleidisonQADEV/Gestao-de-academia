@@ -9,7 +9,7 @@ from PySide6.QtGui import QPixmap
 
 from ui.base_tab import BaseTab
 from ui.app_dialog import AppDialog, show_info, show_question
-from database.db import inserir_aluno, cpf_existe, email_existe
+from database.db import inserir_aluno, cpf_existe, email_existe, get_planos_formatados
 from database.kids_db import inserir_kid, cpf_kid_existe
 
 
@@ -231,17 +231,7 @@ class CadastroAlunoTab(BaseTab):
 
         # -------- PLANO --------
         self.plano = QComboBox()
-        self.plano.addItems([
-            "Adulto - R$180",
-            "Kids (5–13) - R$150",
-            "Família: 2 adultos - R$320",
-            "Família: 1 adulto + 1 kids - R$300",
-            "Família: 2 adultos + 1 kids - R$450",
-            "Família: 1 adulto + 2 kids - R$430",
-            "Família: 1 adulto + 3 kids - R$500",
-            "Plano Personalizado",
-            "Plano Bolsista (Patrocinado)"
-        ])
+        self.carregar_planos()
         self.plano.setFixedWidth(INPUT_W)
         self.plano.setStyleSheet(input_style)
         self.plano.currentTextChanged.connect(self.toggle_plano_personalizado)
@@ -260,6 +250,18 @@ class CadastroAlunoTab(BaseTab):
 
         form.addWidget(self.valor_plano_wrap)
         self.valor_plano_wrap.setVisible(False)
+
+        # -------- AVISO FINANCEIRO --------
+        aviso_financeiro = QLabel("A data de pgto deve ser ajustada em \"editar\" na aba financeiro")
+        aviso_financeiro.setStyleSheet("color:#ff6666;font-size:11px;font-style:italic;margin:5px 0px;")
+        aviso_financeiro.setWordWrap(True)
+        
+        # Criar layout para centralizar o aviso
+        aviso_layout = QHBoxLayout()
+        aviso_layout.addStretch()
+        aviso_layout.addWidget(aviso_financeiro)
+        aviso_layout.addStretch()
+        form.addLayout(aviso_layout)
 
         # -------- ARQUIVOS --------
         self.foto_label = QLabel()
@@ -317,6 +319,19 @@ class CadastroAlunoTab(BaseTab):
         mostrar = texto == "Plano Personalizado"
         self.valor_plano_wrap.setVisible(mostrar)
 
+    def carregar_planos(self):
+        """Carrega planos do banco de dados"""
+        try:
+            self.plano.clear()
+            planos = get_planos_formatados()
+            self.plano.addItems(planos)
+        except Exception as e:
+            # Fallback para planos padrão em caso de erro
+            self.plano.addItems([
+                "Adulto - R$180",
+                "Kids (5–13) - R$150",
+                "Plano Personalizado"
+            ])
 
     def limpar_formulario(self):
         self.nome.clear()
@@ -331,6 +346,7 @@ class CadastroAlunoTab(BaseTab):
         self.resp_cpf.clear()
         self.faixa.setCurrentIndex(0)
         self.grau.setCurrentIndex(0)
+        self.carregar_planos()  # Recarregar planos atualizados
         self.plano.setCurrentIndex(0)
         self.valor_personalizado.clear()
         self.data_input.setDate(QDate.currentDate())
