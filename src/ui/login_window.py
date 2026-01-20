@@ -1,13 +1,13 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
-    QFrame
+    QFrame, QHBoxLayout
 )
-from .app_dialog import show_warning
+from .app_dialog import show_warning, show_question, show_info
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
 import os
 
-from database.db import validar_login
+from database.db import validar_login, get_conn
 
 
 class LoginWindow(QWidget):
@@ -106,6 +106,25 @@ class LoginWindow(QWidget):
             }
         """)
         btn_login.clicked.connect(self.login)
+        
+        # ----- Botão Restaurar Senha -----
+        btn_restaurar = QPushButton("🔄 Restaurar Senha Padrão")
+        btn_restaurar.setFixedHeight(35)
+        btn_restaurar.setCursor(Qt.PointingHandCursor)
+        btn_restaurar.setStyleSheet("""
+            QPushButton {
+                background-color: #6b7280;
+                color: white;
+                border-radius: 8px;
+                font-size: 12px;
+                font-weight: normal;
+                margin-top: 10px;
+            }
+            QPushButton:hover {
+                background-color: #4b5563;
+            }
+        """)
+        btn_restaurar.clicked.connect(self.restaurar_senha)
 
         # ----- Montagem -----
         card_layout.addWidget(logo_frame)
@@ -114,6 +133,7 @@ class LoginWindow(QWidget):
         card_layout.addWidget(self.pass_input)
         card_layout.addSpacing(10)
         card_layout.addWidget(btn_login)
+        card_layout.addWidget(btn_restaurar)
 
         main_layout.addWidget(card)
 
@@ -134,3 +154,37 @@ class LoginWindow(QWidget):
             self.close()
         else:
             show_warning(self, "Erro", "Usuário ou senha inválidos.")
+            
+    def restaurar_senha(self):
+        """Restaura as credenciais para o padrão admin/senha"""
+        resultado = show_question(
+            self,
+            "Restaurar Senha",
+            "🔄 Esta ação irá restaurar as credenciais do sistema\npara o usuário e senha padrão.\n\n" +
+            "Deseja continuar?",
+            "Sim", "Cancelar"
+        )
+        
+        if resultado:
+            try:
+                conn = get_conn()
+                cur = conn.cursor()
+                
+                # Atualizar ou inserir usuário admin com senha padrão
+                cur.execute("DELETE FROM users WHERE username='admin'")
+                cur.execute(
+                    "INSERT INTO users (username, password) VALUES (?, ?)",
+                    ("admin", "senha")
+                )
+                
+                conn.commit()
+                conn.close()
+                
+                # Limpar campos e preencher com padrão
+                self.user_input.setText("admin")
+                self.pass_input.setText("senha")
+                
+                show_info(self, "Sucesso", "✅ Credenciais restauradas com sucesso!\n\nFaça login com o usuário e senha padrão.")
+                
+            except Exception as e:
+                show_warning(self, "Erro", f"Erro ao restaurar credenciais: {str(e)}")

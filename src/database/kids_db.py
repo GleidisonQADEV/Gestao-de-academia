@@ -105,6 +105,13 @@ def init_kids_db():
                 criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+    
+    # Verificar e adicionar coluna biometria_data se não existir (para bancos existentes)
+    try:
+        cur.execute("SELECT biometria_data FROM kids LIMIT 1")
+    except sqlite3.OperationalError:
+        # Coluna não existe, vamos adicioná-la
+        cur.execute("ALTER TABLE kids ADD COLUMN biometria_data TEXT")
 
     conn.commit()
     conn.close()
