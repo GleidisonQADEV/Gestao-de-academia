@@ -46,7 +46,7 @@ class AlunoCard(QFrame):
         self.build_ui()
 
     def build_ui(self):
-        self.setFixedSize(450, 320)  # Aumentado de 420x300 para 450x320
+        self.setFixedSize(480, 320)  # Aumentado de 450x320 para 480x320 para melhor visualização
         self.setStyleSheet("""
             QFrame {
                 background: rgba(255,255,255,0.1);
@@ -272,14 +272,15 @@ class AlunoCard(QFrame):
             self.vinculo_widget.setText("🔗 Vinculado - Clique para navegar")
             self.vinculo_widget.setStyleSheet("""
                 QLabel {
-                    background-color: rgba(52, 152, 219, 0.15);
-                    color: #2980b9;
-                    border: 1px dashed #3498db;
+                    background-color: rgba(229, 9, 20, 0.1);
+                    color: #e50914;
+                    border: 1px dashed #e50914;
                     border-radius: 6px;
                     padding: 2px 6px;
                     font-size: 9px;
                     margin: 1px 0px;
                     max-height: 16px;
+                    font-weight: bold;
                 }
             """)
             self.vinculo_widget.hide()  # Inicialmente oculto
