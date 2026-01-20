@@ -1,13 +1,16 @@
+import os
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QLineEdit, QFrame, QDialog, QScrollArea, QSizePolicy
+    QLineEdit, QFrame, QDialog, QScrollArea, QSizePolicy,
+    QDateEdit, QComboBox, QFileDialog, QFormLayout, QCheckBox,
+    QTextEdit, QTabWidget, QGridLayout, QGroupBox
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap, QPalette, QBrush
 
 from ui.base_tab import BaseTab
-from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos
-from database.kids_db import get_conn
+from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe
+from database.kids_db import get_conn, atualizar_kid, cpf_kid_existe
 from ui.app_dialog import show_info, show_warning, show_error, show_question, show_custom
 
 # ================= ESTILOS CSS =================
@@ -43,7 +46,7 @@ class AlunoCard(QFrame):
         self.build_ui()
 
     def build_ui(self):
-        self.setFixedSize(450, 320)  # Aumentado de 420x300 para 450x320
+        self.setFixedSize(480, 320)  # Aumentado de 450x320 para 480x320 para melhor visualização
         self.setStyleSheet("""
             QFrame {
                 background: rgba(255,255,255,0.1);
@@ -269,14 +272,15 @@ class AlunoCard(QFrame):
             self.vinculo_widget.setText("🔗 Vinculado - Clique para navegar")
             self.vinculo_widget.setStyleSheet("""
                 QLabel {
-                    background-color: rgba(52, 152, 219, 0.15);
-                    color: #2980b9;
-                    border: 1px dashed #3498db;
+                    background-color: rgba(229, 9, 20, 0.1);
+                    color: #e50914;
+                    border: 1px dashed #e50914;
                     border-radius: 6px;
                     padding: 2px 6px;
                     font-size: 9px;
                     margin: 1px 0px;
                     max-height: 16px;
+                    font-weight: bold;
                 }
             """)
             self.vinculo_widget.hide()  # Inicialmente oculto
@@ -1271,7 +1275,21 @@ class AlunosTab(BaseTab):
                     break
 
     def editar(self):
-        show_info(self, "Em breve", "Tela de edição completa será o próximo passo.")
+        if not self.aluno_atual:
+            show_warning(self, "Erro", "Nenhum aluno selecionado!")
+            return
+        
+        # Abrir dialog de edição
+        dialog = EdicaoAlunoDialog(self, self.aluno_atual)
+        if dialog.exec():
+            # Se salvou as alterações, recarregar dados
+            self.carregar_dados()
+            # Refazer busca para manter resultado
+            termo_atual = self.busca.text()
+            if termo_atual:
+                self.buscar()
+            else:
+                self.esconder_cards()
 
     def _btn(self, text):
         """Cria um botão com estilo padrão"""
@@ -1292,3 +1310,736 @@ class AlunosTab(BaseTab):
         self.btn_edit.setVisible(show)
         self.btn_toggle.setVisible(show)
         self.btn_del.setVisible(show)
+
+
+# ================= DIALOG DE EDIÇÃO =================
+class EdicaoAlunoDialog(QDialog):
+    def __init__(self, parent, dados_aluno):
+        super().__init__(parent)
+        self.dados_aluno = dados_aluno
+        self.foto_path = dados_aluno.get("foto", "")
+        self.certificado_path = ""
+        self.biometria_data = None
+        
+        # Listas de faixas
+        self.faixas_adulto = ["Branca", "Azul", "Roxa", "Marrom", "Preta"]
+        self.faixas_kids = [
+            "Branca",
+            "Cinza c/b", "Cinza", "Cinza c/p",
+            "Amarela c/b", "Amarela", "Amarela c/p", 
+            "Laranja c/b", "Laranja", "Laranja c/p",
+            "Verde c/b", "Verde", "Verde c/p"
+        ]
+        
+        self.setup_ui()
+        self.preencher_dados()
+        
+    def setup_ui(self):
+        self.setWindowTitle(f"Editar Aluno - {self.dados_aluno['nome']}")
+        self.setModal(True)
+        self.setFixedSize(950, 900)  # Tamanho aumentado para evitar cortes
+        
+        # Background igual ao das outras telas com logo
+        self.setStyleSheet(f"""
+            QDialog {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #1a1a2e,
+                    stop:1 #16213e
+                );
+                background-image: url({os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'logobackground.png')});
+                background-repeat: no-repeat;
+                background-position: center center;
+                background-attachment: fixed;
+            }}
+        """)
+        
+        # Layout principal 
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(10)
+        
+        # Título fixo no topo
+        title = QLabel(f"✏️ Editar Aluno: {self.dados_aluno['nome']}")
+        title.setStyleSheet("color:white;font-size:22px;font-weight:bold;")
+        main_layout.addWidget(title, alignment=Qt.AlignLeft)
+        
+        # Área de scroll para o formulário
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
+            QScrollBar:vertical {
+                background: rgba(255,255,255,0.1);
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background: #e50914;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #ff1a24;
+            }
+        """)
+        
+        # Container centralizado igual ao cadastro
+        container = QWidget()
+        container.setMaximumWidth(760)
+        
+        form = QVBoxLayout(container)
+        form.setSpacing(12)
+        form.setAlignment(Qt.AlignTop)
+        
+        # Widget wrapper para centralizar o container  
+        wrapper = QWidget()
+        wrapper.setStyleSheet("background: transparent;")
+        wrapper_layout = QHBoxLayout(wrapper)
+        wrapper_layout.addStretch()
+        wrapper_layout.addWidget(container)
+        wrapper_layout.addStretch()
+        
+        # -------- TAMANHOS (iguais ao cadastro) --------
+        LABEL_W = 130
+        INPUT_W = 420
+        SMALL_W = 190
+        MINI_W = 200
+        CPF_W = 260
+        BTN_W = 150
+        BTN_H = 36
+        
+        # -------- ESTILOS (iguais ao cadastro) --------
+        def row(label_text, widget):
+            h = QHBoxLayout()
+            h.setSpacing(12)
+            
+            label = QLabel(label_text)
+            label.setFixedWidth(LABEL_W)
+            label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            label.setStyleSheet("color: white; font-size: 13px;")
+            
+            h.addWidget(label)
+            h.addWidget(widget)
+            h.addStretch()
+            return h
+        
+        input_style = """
+            QLineEdit, QDateEdit, QComboBox {
+                background-color: rgba(255,255,255,0.95);
+                padding: 7px 10px;
+                border-radius: 10px;
+                border: 1.5px solid #ccc;
+                font-size: 13px;
+                color: #111;
+            }
+            QLineEdit:focus, QDateEdit:focus, QComboBox:focus {
+                border: 1.5px solid #e50914;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                border: 2px solid #e50914;
+                border-radius: 8px;
+                selection-background-color: #e50914;
+                selection-color: white;
+                padding: 5px;
+                font-size: 13px;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                background-color: white;
+                color: #333;
+                padding: 8px 12px;
+                margin: 1px;
+                border-radius: 5px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #f8f9fa;
+                color: #e50914;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #e50914;
+                color: white;
+                font-weight: bold;
+            }
+        """
+        
+        def red_btn():
+            return """
+                QPushButton {
+                    background-color: #e50914;
+                    color: white;
+                    border-radius: 9px;
+                    padding: 6px 10px;
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                QPushButton:hover { background-color: #ff1a24; }
+            """
+        
+        def bio_btn():
+            return """
+                QPushButton {
+                    background-color: #007bff;
+                    color: white;
+                    border-radius: 9px;
+                    padding: 6px 10px;
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                QPushButton:hover { background-color: #0056b3; }
+            """
+        
+        # -------- TÍTULO --------
+        legenda = QLabel("* Campos obrigatórios")
+        legenda.setStyleSheet("color:#ff6666;font-size:11px;font-style:italic;margin-bottom:10px;")
+        form.addWidget(legenda, alignment=Qt.AlignLeft)
+        
+        # -------- NOME --------
+        self.nome = QLineEdit()
+        self.nome.setPlaceholderText("Digite o nome completo *")
+        self.nome.setFixedWidth(INPUT_W)
+        self.nome.setStyleSheet(input_style)
+        form.addLayout(row("Nome:", self.nome))
+        
+        # -------- CPF --------
+        self.cpf = QLineEdit()
+        self.cpf.setInputMask("000.000.000-00")
+        self.cpf.setPlaceholderText("000.000.000-00")
+        self.cpf.setFixedWidth(CPF_W)
+        self.cpf.setStyleSheet(input_style)
+        form.addLayout(row("CPF:", self.cpf))
+        
+        # -------- RESPONSÁVEL (se for kids) --------
+        self.resp_wrap = QWidget()
+        resp_layout = QVBoxLayout(self.resp_wrap)
+        resp_layout.setContentsMargins(0, 0, 0, 0)
+        resp_layout.setSpacing(12)
+        
+        self.resp_nome = QLineEdit()
+        self.resp_nome.setPlaceholderText("Nome do responsável *")
+        self.resp_nome.setFixedWidth(INPUT_W)
+        self.resp_nome.setStyleSheet(input_style)
+        resp_layout.addLayout(row("Resp. Nome:", self.resp_nome))
+        
+        self.resp_cpf = QLineEdit()
+        self.resp_cpf.setInputMask("000.000.000-00")
+        self.resp_cpf.setPlaceholderText("CPF do responsável *")
+        self.resp_cpf.setFixedWidth(CPF_W)
+        self.resp_cpf.setStyleSheet(input_style)
+        resp_layout.addLayout(row("Resp. CPF:", self.resp_cpf))
+        
+        # Mostrar responsável apenas se for kids
+        if self.dados_aluno["tipo"] == "kids":
+            self.resp_wrap.setVisible(True)
+        else:
+            self.resp_wrap.setVisible(False)
+            
+        form.addWidget(self.resp_wrap)
+        
+        # -------- EMAIL --------
+        self.email = QLineEdit()
+        self.email.setPlaceholderText("exemplo@email.com (opcional)")
+        self.email.setFixedWidth(INPUT_W)
+        self.email.setStyleSheet(input_style)
+        form.addLayout(row("E-mail:", self.email))
+        
+        # -------- TELEFONE --------
+        self.telefone = QLineEdit()
+        self.telefone.setInputMask("(00) 00000-0000")
+        self.telefone.setPlaceholderText("(00) 00000-0000 *")
+        self.telefone.setFixedWidth(MINI_W)
+        self.telefone.setStyleSheet(input_style)
+        form.addLayout(row("Telefone:", self.telefone))
+        
+        # -------- CEP --------
+        self.cep = QLineEdit()
+        self.cep.setInputMask("00000-000")
+        self.cep.setPlaceholderText("00000-000 *")
+        self.cep.setFixedWidth(SMALL_W)
+        self.cep.setStyleSheet(input_style)
+        form.addLayout(row("CEP:", self.cep))
+        
+        # -------- ENDEREÇO --------
+        self.endereco = QLineEdit()
+        self.endereco.setPlaceholderText("Rua, número, bairro *")
+        self.endereco.setFixedWidth(INPUT_W)
+        self.endereco.setStyleSheet(input_style)
+        form.addLayout(row("Endereço:", self.endereco))
+        
+        # -------- NASCIMENTO --------
+        self.data_input = QDateEdit()
+        self.data_input.setCalendarPopup(True)
+        self.data_input.setDate(QDate.currentDate())
+        self.data_input.setDisplayFormat("dd/MM/yyyy")
+        self.data_input.setFixedWidth(SMALL_W)
+        self.data_input.setStyleSheet(input_style)
+        form.addLayout(row("Nascimento:", self.data_input))
+        
+        # -------- FAIXA / GRAU --------
+        self.faixa = QComboBox()
+        if self.dados_aluno["tipo"] == "adulto":
+            self.faixa.addItems(self.faixas_adulto)
+        else:
+            self.faixa.addItems(self.faixas_kids)
+        self.faixa.setFixedWidth(MINI_W)
+        self.faixa.setStyleSheet(input_style)
+        
+        self.grau = QComboBox()
+        self.grau.addItems(["Sem grau", "1 Grau", "2 Graus", "3 Graus", "4 Graus"])
+        self.grau.setFixedWidth(MINI_W)
+        self.grau.setStyleSheet(input_style)
+        
+        fw = QWidget()
+        fw.setFixedWidth(INPUT_W)
+        fl = QHBoxLayout(fw)
+        fl.setContentsMargins(0, 0, 0, 0)
+        fl.setSpacing(12)
+        fl.addWidget(self.faixa)
+        fl.addWidget(self.grau)
+        form.addLayout(row("Faixa / Grau:", fw))
+        
+        # -------- PESO / ALTURA --------
+        self.peso = QLineEdit()
+        self.peso.setPlaceholderText("Peso (kg)")
+        self.peso.setFixedWidth(MINI_W)
+        self.peso.setStyleSheet(input_style)
+        
+        self.altura = QLineEdit()
+        self.altura.setPlaceholderText("Altura (cm)")
+        self.altura.setFixedWidth(MINI_W)
+        self.altura.setStyleSheet(input_style)
+        
+        pw = QWidget()
+        pw.setFixedWidth(INPUT_W)
+        pl = QHBoxLayout(pw)
+        pl.setContentsMargins(0, 0, 0, 0)
+        pl.setSpacing(12)
+        pl.addWidget(self.peso)
+        pl.addWidget(self.altura)
+        form.addLayout(row("Peso / Altura:", pw))
+        
+        # -------- PLANO --------
+        self.plano = QComboBox()
+        self.plano.setEditable(True)
+        self.plano.addItems([
+            "Adulto - R$180",
+            "Kids (5–13) - R$150", 
+            "Família: 2 adultos - R$320",
+            "Família: 1 adulto + 1 kids - R$300",
+            "Família: 2 adultos + 1 kids - R$450",
+            "Família: 1 adulto + 2 kids - R$430",
+            "Família: 1 adulto + 3 kids - R$500",
+            "Plano Personalizado",
+            "Plano Bolsista (Patrocinado)"
+        ])
+        self.plano.setFixedWidth(INPUT_W)
+        self.plano.setStyleSheet(input_style)
+        form.addLayout(row("Plano:", self.plano))
+        
+        # -------- ARQUIVOS & BIOMETRIA --------
+        self.foto_label = QLabel()
+        self.foto_label.setFixedSize(70, 70)
+        self.foto_label.setStyleSheet("""
+            QLabel {
+                background: rgba(255,255,255,0.1);
+                border-radius: 8px;
+                border: 1px solid rgba(255,255,255,0.3);
+                color: #999;
+            }
+        """)
+        self.foto_label.setAlignment(Qt.AlignCenter)
+        self.foto_label.setText("👤\nSem foto")
+        self.foto_label.setScaledContents(True)
+        
+        btn_foto = QPushButton("📁 Selecionar Foto")
+        btn_foto.setFixedSize(BTN_W + 20, BTN_H)
+        btn_foto.setStyleSheet(red_btn())
+        btn_foto.clicked.connect(self.selecionar_foto)
+        
+        btn_cert = QPushButton("📄 Certificado")
+        btn_cert.setFixedSize(BTN_W, BTN_H)
+        btn_cert.setStyleSheet(red_btn())
+        btn_cert.clicked.connect(self.selecionar_certificado)
+        
+        # Status de biometria
+        self.bio_status = QLabel("❌ Sem biometria")
+        self.bio_status.setStyleSheet("""
+            QLabel {
+                background: rgba(220,53,69,0.1);
+                color: #dc3545;
+                padding: 4px 8px;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: bold;
+                margin: 2px;
+            }
+        """)
+        
+        btn_bio = QPushButton("👆 Cadastrar Biometria")
+        btn_bio.setFixedSize(BTN_W + 30, BTN_H)
+        btn_bio.setStyleSheet(bio_btn())
+        btn_bio.clicked.connect(self.cadastrar_biometria)
+        
+        btn_remove_bio = QPushButton("🗑️ Remover")
+        btn_remove_bio.setFixedSize(80, BTN_H)
+        btn_remove_bio.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-weight: bold;
+                font-size: 10px;
+            }
+            QPushButton:hover { background-color: #c82333; }
+        """)
+        btn_remove_bio.clicked.connect(self.remover_biometria)
+        
+        # Widget arquivos
+        aw = QWidget()
+        al = QVBoxLayout(aw)
+        al.setContentsMargins(0, 0, 0, 0)
+        al.setSpacing(8)
+        
+        # Primeira linha: foto, botões de arquivo
+        primeira_linha = QHBoxLayout()
+        primeira_linha.setSpacing(10)
+        primeira_linha.addWidget(self.foto_label)
+        primeira_linha.addWidget(btn_foto)
+        primeira_linha.addWidget(btn_cert)
+        primeira_linha.addStretch()
+        
+        # Segunda linha: biometria
+        segunda_linha = QHBoxLayout()
+        segunda_linha.setSpacing(10)
+        segunda_linha.addWidget(self.bio_status)
+        segunda_linha.addWidget(btn_bio)
+        segunda_linha.addWidget(btn_remove_bio)
+        segunda_linha.addStretch()
+        
+        al.addLayout(primeira_linha)
+        al.addLayout(segunda_linha)
+        
+        form.addLayout(row("Arquivos:", aw))
+        
+        # -------- BOTÕES --------
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(15)
+        
+        btn_cancelar_edicao = QPushButton("Cancelar Edição")
+        btn_cancelar_edicao.setFixedSize(160, 44)
+        btn_cancelar_edicao.setStyleSheet(red_btn())
+        btn_cancelar_edicao.clicked.connect(self.cancelar_edicao)
+        
+        btn_salvar = QPushButton("💾 Salvar Alterações")
+        btn_salvar.setFixedSize(200, 44)
+        btn_salvar.setStyleSheet(red_btn())
+        btn_salvar.clicked.connect(self.salvar)
+        
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_cancelar_edicao)
+        btn_layout.addWidget(btn_salvar)
+        
+        form.addLayout(btn_layout)
+        
+        # Adicionar wrapper centralizado ao scroll
+        scroll_area.setWidget(wrapper)
+        main_layout.addWidget(scroll_area)
+        
+    def preencher_dados(self):
+        """Preenche os campos com os dados atuais do aluno"""
+        dados = self.dados_aluno
+        
+        # Dados pessoais
+        self.nome.setText(dados.get("nome", ""))
+        self.cpf.setText(dados.get("cpf", ""))
+        self.email.setText(dados.get("email", ""))
+        self.telefone.setText(dados.get("telefone", ""))
+        self.cep.setText(dados.get("cep", ""))
+        self.endereco.setText(dados.get("endereco", ""))
+        
+        # Data de nascimento
+        if dados.get("data_nascimento"):
+            from datetime import datetime
+            try:
+                dt = datetime.strptime(dados["data_nascimento"], "%Y-%m-%d")
+                self.data_input.setDate(QDate(dt.year, dt.month, dt.day))
+            except:
+                pass
+        
+        # Dados do responsável (se for kids)
+        if dados["tipo"] == "kids":
+            self.resp_nome.setText(dados.get("responsavel", ""))
+            self.resp_cpf.setText(dados.get("responsavel_cpf", ""))
+        
+        # Academia
+        faixa = dados.get("faixa", "")
+        if faixa:
+            index = self.faixa.findText(faixa)
+            if index >= 0:
+                self.faixa.setCurrentIndex(index)
+        
+        # Grau - agora é QComboBox
+        grau = dados.get("grau", "Sem grau")
+        # Converter valores antigos para o novo formato
+        if grau == "0" or grau == "":
+            grau = "Sem grau"
+        elif grau.isdigit():
+            if grau == "1":
+                grau = "1 Grau"
+            else:
+                grau = f"{grau} Graus"
+        
+        index = self.grau.findText(str(grau))
+        if index >= 0:
+            self.grau.setCurrentIndex(index)
+        else:
+            self.grau.setCurrentIndex(0)  # Default para "Sem grau"
+            
+        self.peso.setText(dados.get("peso", ""))
+        self.altura.setText(dados.get("altura", ""))
+        
+        # Plano
+        plano = dados.get("plano", "")
+        if plano:
+            index = self.plano.findText(plano)
+            if index >= 0:
+                self.plano.setCurrentIndex(index)
+            else:
+                self.plano.setEditText(plano)
+        
+        # Foto
+        if dados.get("foto") and os.path.exists(dados["foto"]):
+            pixmap = QPixmap(dados["foto"])
+            if not pixmap.isNull():
+                self.foto_label.setPixmap(pixmap.scaled(
+                    70, 70, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                ))
+            self.foto_path = dados["foto"]
+        
+    def selecionar_foto(self):
+        """Escolhe foto do aluno"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Escolher Foto",
+            "",
+            "Imagens (*.png *.jpg *.jpeg *.gif *.bmp)"
+        )
+        
+        if file_path:
+            pixmap = QPixmap(file_path)
+            if not pixmap.isNull():
+                self.foto_label.setPixmap(pixmap.scaled(
+                    70, 70, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                ))
+                self.foto_path = file_path
+            else:
+                show_error(self, "Erro", "Arquivo de imagem inválido!")
+                
+    def selecionar_certificado(self):
+        """Escolhe certificado do aluno"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Escolher Certificado",
+            "",
+            "Documentos (*.pdf *.jpg *.jpeg *.png)"
+        )
+        
+        if file_path:
+            self.certificado_path = file_path
+            show_info(self, "Sucesso", f"📄 Certificado selecionado: {os.path.basename(file_path)}")
+            
+    def cadastrar_biometria(self):
+        """Simula cadastro de biometria"""
+        resultado = show_question(
+            self,
+            "Cadastrar Biometria",
+            "📱 Conecte o leitor biométrico e posicione o dedo.\n\nSimular cadastro de biometria?",
+            "Sim", "Cancelar"
+        )
+        
+        if resultado:
+            import random
+            self.biometria_data = {
+                "template": f"BIO_{random.randint(1000,9999)}",
+                "quality": random.randint(85, 98)
+            }
+            
+            self.bio_status.setText(f"✅ Biometria {self.biometria_data['quality']}%")
+            self.bio_status.setStyleSheet("""
+                QLabel {
+                    background: rgba(40,167,69,0.1);
+                    color: #28a745;
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    font-size: 11px;
+                    font-weight: bold;
+                    margin: 2px;
+                }
+            """)
+            
+            show_info(self, "Sucesso", f"🎉 Biometria cadastrada!\n\nQualidade: {self.biometria_data['quality']:.0f}%")
+            
+    def remover_biometria(self):
+        """Remove biometria cadastrada"""
+        if self.biometria_data:
+            resultado = show_question(
+                self,
+                "Remover Biometria",
+                "⚠️ Remover a biometria cadastrada?",
+                "Sim", "Não"
+            )
+            
+            if resultado:
+                self.biometria_data = None
+                self.bio_status.setText("❌ Sem biometria")
+                self.bio_status.setStyleSheet("""
+                    QLabel {
+                        background: rgba(220,53,69,0.1);
+                        color: #dc3545;
+                        padding: 4px 8px;
+                        border-radius: 6px;
+                        font-size: 11px;
+                        font-weight: bold;
+                        margin: 2px;
+                    }
+                """)
+                show_info(self, "Removido", "🗑️ Biometria removida!")
+        else:
+            show_info(self, "Aviso", "ℹ️ Não há biometria cadastrada.")
+            
+    def validar_campos(self):
+        """Valida todos os campos obrigatórios"""
+        erros = []
+        
+        if not self.nome.text().strip():
+            erros.append("• Nome é obrigatório")
+            
+        # Para adultos, CPF é obrigatório
+        if self.dados_aluno["tipo"] == "adulto":
+            if not self.cpf.text().strip():
+                erros.append("• CPF é obrigatório")
+            elif len(self.cpf.text().replace(".", "").replace("-", "").replace(" ", "")) != 11:
+                erros.append("• CPF deve ter 11 dígitos")
+        # Para kids, CPF é opcional (igual ao cadastro)
+            
+        if not self.telefone.text().strip():
+            erros.append("• Telefone é obrigatório")
+            
+        if not self.cep.text().strip():
+            erros.append("• CEP é obrigatório")
+            
+        if not self.endereco.text().strip():
+            erros.append("• Endereço é obrigatório")
+            
+        if not self.grau.currentText().strip():
+            erros.append("• Grau é obrigatório")
+            
+        if not self.plano.currentText().strip():
+            erros.append("• Plano é obrigatório")
+            
+        # Campos específicos para kids (apenas responsável obrigatório)
+        if self.dados_aluno["tipo"] == "kids":
+            if not self.resp_nome.text().strip():
+                erros.append("• Nome do responsável é obrigatório")
+                
+            if not self.resp_cpf.text().strip():
+                erros.append("• CPF do responsável é obrigatório")
+            elif len(self.resp_cpf.text().replace(".", "").replace("-", "").replace(" ", "")) != 11:
+                erros.append("• CPF do responsável deve ter 11 dígitos")
+        
+        return erros
+        
+    def verificar_duplicatas(self):
+        """Verifica CPFs duplicados"""
+        erros = []
+        
+        cpf = self.cpf.text().replace(".", "").replace("-", "").replace(" ", "")
+        
+        if self.dados_aluno["tipo"] == "adulto":
+            if cpf_existe(cpf, self.dados_aluno["id"]):
+                erros.append("• CPF já está cadastrado para outro aluno adulto")
+        else:
+            # Para kids, só verifica CPF se foi preenchido (igual ao cadastro)
+            if cpf and cpf_kid_existe(cpf, self.dados_aluno["id"]):
+                erros.append("• CPF já está cadastrado para outra criança")
+                
+        email = self.email.text().strip()
+        if email and self.dados_aluno["tipo"] == "adulto":
+            if email_existe(email, self.dados_aluno["id"]):
+                erros.append("• Email já está cadastrado para outro aluno")
+                    
+        return erros
+        
+    def salvar(self):
+        """Salva as alterações"""
+        erros_validacao = self.validar_campos()
+        if erros_validacao:
+            show_error(self, "Campos Obrigatórios", "\n".join(erros_validacao))
+            return
+            
+        erros_duplicata = self.verificar_duplicatas()
+        if erros_duplicata:
+            show_error(self, "Dados Duplicados", "\n".join(erros_duplicata))
+            return
+            
+        try:
+            nome = self.nome.text().strip()
+            cpf = self.cpf.text().replace(".", "").replace("-", "").replace(" ", "")
+            email = self.email.text().strip()
+            telefone = self.telefone.text().strip()
+            cep = self.cep.text().strip()
+            endereco = self.endereco.text().strip()
+            data_nasc = self.data_input.date().toString("yyyy-MM-dd")
+            faixa = self.faixa.currentText()
+            grau = self.grau.currentText().strip()
+            peso = self.peso.text().strip()
+            altura = self.altura.text().strip()
+            plano = self.plano.currentText().strip()
+            
+            # Converter biometria para JSON se existir
+            import json
+            biometria_json = json.dumps(self.biometria_data) if self.biometria_data else None
+            
+            if self.dados_aluno["tipo"] == "adulto":
+                atualizar_aluno(
+                    self.dados_aluno["id"],
+                    nome, cpf, email, telefone, cep, endereco, data_nasc,
+                    faixa, grau, peso, altura, plano,
+                    self.foto_path, self.certificado_path,
+                    biometria_json
+                )
+            else:
+                resp_nome = self.resp_nome.text().strip()
+                resp_cpf = self.resp_cpf.text().replace(".", "").replace("-", "").replace(" ", "")
+                
+                atualizar_kid(
+                    self.dados_aluno["id"],
+                    nome, cpf, resp_nome, resp_cpf, email, telefone, cep, endereco, data_nasc,
+                    faixa, grau, peso, altura, plano,
+                    self.foto_path, self.certificado_path,
+                    biometria_json
+                )
+                
+            show_info(self, "Sucesso", f"✅ Aluno {nome} atualizado com sucesso!")
+            self.accept()
+            
+        except Exception as e:
+            show_error(self, "Erro", f"Erro ao salvar: {str(e)}")
+            
+    def cancelar_edicao(self):
+        """Cancela a edição com confirmação se houver alterações"""
+        resultado = show_question(
+            self,
+            "Cancelar Edição",
+            "⚠️ Tem certeza que deseja cancelar a edição?\n\nTodas as alterações não salvas serão perdidas.",
+            "Sim, Cancelar", "Não"
+        )
+        
+        if resultado:
+            show_info(self, "Edição Cancelada", "✅ Edição cancelada. Nenhuma alteração foi salva.")
+            self.reject()

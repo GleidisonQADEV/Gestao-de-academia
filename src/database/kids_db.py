@@ -57,6 +57,7 @@ def init_kids_db():
 
                 foto_path TEXT,
                 certificado_path TEXT,
+                biometria_data TEXT,
 
                 ativo INTEGER DEFAULT 1,
                 criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -98,11 +99,19 @@ def init_kids_db():
 
                 foto_path TEXT,
                 certificado_path TEXT,
+                biometria_data TEXT,
 
                 ativo INTEGER DEFAULT 1,
                 criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+    
+    # Verificar e adicionar coluna biometria_data se não existir (para bancos existentes)
+    try:
+        cur.execute("SELECT biometria_data FROM kids LIMIT 1")
+    except sqlite3.OperationalError:
+        # Coluna não existe, vamos adicioná-la
+        cur.execute("ALTER TABLE kids ADD COLUMN biometria_data TEXT")
 
     conn.commit()
     conn.close()
@@ -146,13 +155,59 @@ def listar_kids():
 
 # ---------------- VALIDAÇÃO ----------------
 
-def cpf_kid_existe(cpf):
+def cpf_kid_existe(cpf, excluir_id=None):
+    """Verifica se CPF já existe, opcionalmente excluindo um ID específico (para edição)"""
+    if not cpf:
+        return False
+    
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT 1 FROM kids WHERE cpf=?", (cpf,))
+    
+    if excluir_id:
+        cur.execute("SELECT 1 FROM kids WHERE cpf=? AND id!=?", (cpf, excluir_id))
+    else:
+        cur.execute("SELECT 1 FROM kids WHERE cpf=?", (cpf,))
+    
     r = cur.fetchone()
     conn.close()
     return r is not None
+
+
+# ---------------- ATUALIZAÇÃO ----------------
+
+def atualizar_kid(
+    kid_id, nome, cpf, resp_nome, resp_cpf, email, telefone, cep, endereco, data_nasc,
+    faixa, grau, peso, altura, plano, foto_path, certificado_path, biometria_data=None
+):
+    """Atualiza todos os dados de uma criança"""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    try:
+        # Se não há CPF, gerar um automático
+        if not cpf:
+            timestamp_suffix = str(int(time.time()))[-4:]
+            cpf = f"KID{resp_cpf[:6]}{timestamp_suffix}"
+        
+        cur.execute("""
+            UPDATE kids SET 
+                nome=?, cpf=?, resp_nome=?, resp_cpf=?, email=?, telefone=?, 
+                cep=?, endereco=?, data_nascimento=?,
+                faixa=?, grau=?, peso=?, altura=?, plano=?,
+                foto_path=?, certificado_path=?, biometria_data=?
+            WHERE id=?
+        """, (
+            nome, cpf, resp_nome, resp_cpf, email, telefone, cep, endereco,
+            data_nasc, faixa, grau, peso, altura, plano, foto_path, certificado_path, biometria_data,
+            kid_id
+        ))
+        
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
 
 
 # ---------------- STATUS ----------------
@@ -179,7 +234,7 @@ def excluir_kid(kid_id):
 
 def inserir_kid(
     nome, cpf, resp_nome, resp_cpf, email, telefone, cep, endereco, data_nasc,
-    faixa, grau, peso, altura, plano, foto_path, certificado_path
+    faixa, grau, peso, altura, plano, foto_path, certificado_path, biometria_data=None
 ):
     conn = get_conn()
     cur = conn.cursor()
@@ -193,12 +248,12 @@ def inserir_kid(
             INSERT INTO kids (
                 nome, cpf, resp_nome, resp_cpf, email, telefone, cep, endereco,
                 data_nascimento, faixa, grau, peso, altura, plano,
-                foto_path, certificado_path
+                foto_path, certificado_path, biometria_data
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             nome, cpf, resp_nome, resp_cpf, email, telefone, cep, endereco,
-            data_nasc, faixa, grau, peso, altura, plano, foto_path, certificado_path
+            data_nasc, faixa, grau, peso, altura, plano, foto_path, certificado_path, biometria_data
         ))
 
         conn.commit()

@@ -11,9 +11,9 @@ from database.db import init_db
 from database.kids_db import init_kids_db
 
 from ui.login_window import LoginWindow
-from ui.dashboard_tab import DashboardTab
 from ui.alunos_tab import AlunosTab
 from ui.cadastro_aluno_tab import CadastroAlunoTab
+from ui.financeiro_tab import FinanceiroTab
 from ui.config_tab import ConfigTab
 
 
@@ -88,9 +88,31 @@ class MainWindow(QWidget):
 
         sidebar.addWidget(menu_btn("Alunos", 0))
         sidebar.addWidget(menu_btn("Cadastrar Aluno", 1))
-        sidebar.addWidget(menu_btn("Dashboard", 2))
+        sidebar.addWidget(menu_btn("Financeiro", 2))
         sidebar.addWidget(menu_btn("Configurações", 3))
         sidebar.addStretch()
+        
+        # -------- BOTÃO SAIR NO RODAPÉ --------
+        btn_sair = QPushButton("Sair")
+        btn_sair.setCursor(Qt.PointingHandCursor)
+        btn_sair.setFixedHeight(42)
+        btn_sair.setStyleSheet("""
+            QPushButton{
+                border:none;
+                text-align:left;
+                padding-left:18px;
+                font-size:14px;
+                font-weight:600;
+                color:#111827;
+                border-radius:8px;
+                margin-bottom:10px;
+            }
+            QPushButton:hover{
+                background:#f3f4f6;
+            }
+        """)
+        btn_sair.clicked.connect(self.confirmar_sair)
+        sidebar.addWidget(btn_sair)
 
         root.addWidget(sidebar_widget)
 
@@ -99,12 +121,12 @@ class MainWindow(QWidget):
 
         self.alunos_tab = AlunosTab()
         self.cadastro_tab = CadastroAlunoTab(refresh_callback=self.alunos_tab.load)
-        self.dashboard_tab = DashboardTab()
+        self.financeiro_tab = FinanceiroTab()
         self.config_tab = ConfigTab()
 
         self.stack.addWidget(self.alunos_tab)
         self.stack.addWidget(self.cadastro_tab)
-        self.stack.addWidget(self.dashboard_tab)
+        self.stack.addWidget(self.financeiro_tab)
         self.stack.addWidget(self.config_tab)
 
         self.stack.setCurrentIndex(0)  # página inicial
@@ -120,6 +142,23 @@ class MainWindow(QWidget):
         for b in self.menu_buttons:
             b.setChecked(False)
         btn.setChecked(True)
+        
+    def confirmar_sair(self):
+        """Confirma saída do sistema"""
+        from ui.app_dialog import show_question
+        
+        resultado = show_question(
+            self,
+            "Confirmar Saída",
+            "🚪 Deseja realmente sair do sistema?",
+            "Sim", "Cancelar"
+        )
+        
+        if resultado:
+            self.close()
+            # Mostrar novamente a tela de login
+            login = LoginWindow(on_success=abrir_sistema)
+            login.show()
 
     def show_window(self):
         self.show()

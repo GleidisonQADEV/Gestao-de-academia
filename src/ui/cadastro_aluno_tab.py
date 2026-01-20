@@ -8,8 +8,8 @@ from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap
 
 from ui.base_tab import BaseTab
-from ui.app_dialog import AppDialog
-from database.db import inserir_aluno, cpf_existe, email_existe
+from ui.app_dialog import AppDialog, show_info, show_question
+from database.db import inserir_aluno, cpf_existe, email_existe, get_planos_formatados
 from database.kids_db import inserir_kid, cpf_kid_existe
 
 
@@ -231,17 +231,7 @@ class CadastroAlunoTab(BaseTab):
 
         # -------- PLANO --------
         self.plano = QComboBox()
-        self.plano.addItems([
-            "Adulto - R$180",
-            "Kids (5–13) - R$150",
-            "Família: 2 adultos - R$320",
-            "Família: 1 adulto + 1 kids - R$300",
-            "Família: 2 adultos + 1 kids - R$450",
-            "Família: 1 adulto + 2 kids - R$430",
-            "Família: 1 adulto + 3 kids - R$500",
-            "Plano Personalizado",
-            "Plano Bolsista (Patrocinado)"
-        ])
+        self.carregar_planos()
         self.plano.setFixedWidth(INPUT_W)
         self.plano.setStyleSheet(input_style)
         self.plano.currentTextChanged.connect(self.toggle_plano_personalizado)
@@ -261,6 +251,18 @@ class CadastroAlunoTab(BaseTab):
         form.addWidget(self.valor_plano_wrap)
         self.valor_plano_wrap.setVisible(False)
 
+        # -------- AVISO FINANCEIRO --------
+        aviso_financeiro = QLabel("A data de pgto deve ser ajustada em \"editar\" na aba financeiro")
+        aviso_financeiro.setStyleSheet("color:#ff6666;font-size:11px;font-style:italic;margin:5px 0px;")
+        aviso_financeiro.setWordWrap(True)
+        
+        # Criar layout para centralizar o aviso
+        aviso_layout = QHBoxLayout()
+        aviso_layout.addStretch()
+        aviso_layout.addWidget(aviso_financeiro)
+        aviso_layout.addStretch()
+        form.addLayout(aviso_layout)
+
         # -------- ARQUIVOS --------
         self.foto_label = QLabel()
         self.foto_label.setFixedSize(70, 70)
@@ -275,6 +277,11 @@ class CadastroAlunoTab(BaseTab):
         btn_cert.setFixedSize(BTN_W, BTN_H)
         btn_cert.setStyleSheet(red_btn())
         btn_cert.clicked.connect(self.selecionar_certificado)
+        
+        btn_biometria = QPushButton("🔍 Cadastrar Biometria")
+        btn_biometria.setFixedSize(BTN_W + 20, BTN_H)
+        btn_biometria.setStyleSheet(red_btn())
+        btn_biometria.clicked.connect(self.cadastrar_biometria)
 
         aw = QWidget()
         al = QHBoxLayout(aw)
@@ -283,6 +290,7 @@ class CadastroAlunoTab(BaseTab):
         al.addWidget(self.foto_label)
         al.addWidget(btn_foto)
         al.addWidget(btn_cert)
+        al.addWidget(btn_biometria)
         al.addStretch()
         form.addLayout(row("Arquivos:", aw))
 
@@ -311,6 +319,19 @@ class CadastroAlunoTab(BaseTab):
         mostrar = texto == "Plano Personalizado"
         self.valor_plano_wrap.setVisible(mostrar)
 
+    def carregar_planos(self):
+        """Carrega planos do banco de dados"""
+        try:
+            self.plano.clear()
+            planos = get_planos_formatados()
+            self.plano.addItems(planos)
+        except Exception as e:
+            # Fallback para planos padrão em caso de erro
+            self.plano.addItems([
+                "Adulto - R$180",
+                "Kids (5–13) - R$150",
+                "Plano Personalizado"
+            ])
 
     def limpar_formulario(self):
         self.nome.clear()
@@ -325,12 +346,16 @@ class CadastroAlunoTab(BaseTab):
         self.resp_cpf.clear()
         self.faixa.setCurrentIndex(0)
         self.grau.setCurrentIndex(0)
+        self.carregar_planos()  # Recarregar planos atualizados
         self.plano.setCurrentIndex(0)
         self.valor_personalizado.clear()
         self.data_input.setDate(QDate.currentDate())
         self.chk_kids.setChecked(False)
         self.foto_path = None
         self.certificado_path = None
+        self.biometria_data = None
+        self.foto_label.clear()
+        self.foto_label.setStyleSheet("background:#222;border-radius:8px;")
         self.foto_label.clear()
         self.foto_label.setStyleSheet("background:#222;border-radius:8px;")
         self.resp_wrap.setVisible(False)
@@ -378,6 +403,24 @@ class CadastroAlunoTab(BaseTab):
         file, _ = QFileDialog.getOpenFileName(self, "Selecionar Certificado", "", "PDF (*.pdf)")
         if file:
             self.certificado_path = file
+            
+    def cadastrar_biometria(self):
+        """Simula cadastro de biometria"""
+        resultado = show_question(
+            self,
+            "Cadastrar Biometria",
+            "📱 Conecte o leitor biométrico e posicione o dedo.\n\nSimular cadastro de biometria?",
+            "Sim", "Cancelar"
+        )
+        
+        if resultado:
+            import random
+            self.biometria_data = {
+                "template": f"BIO_{random.randint(1000,9999)}",
+                "quality": random.randint(85, 98)
+            }
+            
+            show_info(self, "Sucesso", f"🎉 Biometria cadastrada!\n\nQualidade: {self.biometria_data['quality']:.0f}%")
             
     def confirmar_salvamento(self):
         dlg = AppDialog(
@@ -492,11 +535,16 @@ class CadastroAlunoTab(BaseTab):
             if self.confirmar_salvamento() != "Confirmar":
                 return
 
+            # Converter biometria para JSON se existir
+            import json
+            biometria_json = json.dumps(self.biometria_data) if self.biometria_data else None
+            
             inserir_kid(
                 nome, cpf, resp_nome, resp_cpf, email,
                 telefone, cep, endereco,
                 data_nasc, faixa, grau, peso, altura,
-                plano_final, self.foto_path, self.certificado_path
+                plano_final, self.foto_path, self.certificado_path,
+                biometria_json
             )
 
 
@@ -518,10 +566,15 @@ class CadastroAlunoTab(BaseTab):
             if self.confirmar_salvamento() != "Confirmar":
                 return
 
+            # Converter biometria para JSON se existir
+            import json
+            biometria_json = json.dumps(self.biometria_data) if self.biometria_data else None
+            
             inserir_aluno(
                 nome, cpf, email, telefone, cep,
                 endereco, data_nasc, faixa, grau, peso, altura,
-                plano, self.foto_path, self.certificado_path
+                plano, self.foto_path, self.certificado_path, 
+                biometria_json
             )
 
         AppDialog("Sucesso", "Cadastro realizado com sucesso!", ("OK",), self).exec()
