@@ -55,6 +55,7 @@ def init_db():
 
             foto_path TEXT,
             certificado_path TEXT,
+            biometria_data TEXT,
 
             ativo INTEGER DEFAULT 1,
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -84,7 +85,7 @@ def validar_login(username, password):
 def inserir_aluno(
     nome, cpf, email, telefone, cep, endereco, data_nasc,
     faixa, grau, peso, altura, plano,
-    foto_path, certificado_path
+    foto_path, certificado_path, biometria_data=None
 ):
     conn = get_conn()
     cur = conn.cursor()
@@ -93,13 +94,13 @@ def inserir_aluno(
         INSERT INTO alunos (
             nome, cpf, email, telefone, cep, endereco, data_nascimento,
             faixa, grau, peso, altura, plano,
-            foto_path, certificado_path
+            foto_path, certificado_path, biometria_data
         )
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, (
         nome, cpf, email, telefone, cep, endereco, data_nasc,
         faixa, grau, peso, altura, plano,
-        foto_path, certificado_path
+        foto_path, certificado_path, biometria_data
     ))
 
     conn.commit()
@@ -141,23 +142,60 @@ def inativar_aluno(aluno_id, novo_status=0):
     conn.close()
 
 
-# ---------------- VALIDAÇÕES ----------------
-
-def cpf_existe(cpf):
+def atualizar_aluno(
+    aluno_id, nome, cpf, email, telefone, cep, endereco, data_nasc,
+    faixa, grau, peso, altura, plano, foto_path, certificado_path, biometria_data=None
+):
+    """Atualiza todos os dados de um aluno"""
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT 1 FROM alunos WHERE cpf=?", (cpf,))
+    
+    cur.execute("""
+        UPDATE alunos SET 
+            nome=?, cpf=?, email=?, telefone=?, cep=?, endereco=?, data_nascimento=?,
+            faixa=?, grau=?, peso=?, altura=?, plano=?,
+            foto_path=?, certificado_path=?, biometria_data=?
+        WHERE id=?
+    """, (
+        nome, cpf, email, telefone, cep, endereco, data_nasc,
+        faixa, grau, peso, altura, plano,
+        foto_path, certificado_path, biometria_data, aluno_id
+    ))
+    
+    conn.commit()
+    conn.close()
+
+
+# ---------------- VALIDAÇÕES ----------------
+
+def cpf_existe(cpf, excluir_id=None):
+    """Verifica se CPF já existe, opcionalmente excluindo um ID específico (para edição)"""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    if excluir_id:
+        cur.execute("SELECT 1 FROM alunos WHERE cpf=? AND id!=?", (cpf, excluir_id))
+    else:
+        cur.execute("SELECT 1 FROM alunos WHERE cpf=?", (cpf,))
+    
     r = cur.fetchone()
     conn.close()
     return r is not None
 
 
-def email_existe(email):
+def email_existe(email, excluir_id=None):
+    """Verifica se email já existe, opcionalmente excluindo um ID específico (para edição)"""
     if not email:
         return False
+    
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT 1 FROM alunos WHERE email=?", (email,))
+    
+    if excluir_id:
+        cur.execute("SELECT 1 FROM alunos WHERE email=? AND id!=?", (email, excluir_id))
+    else:
+        cur.execute("SELECT 1 FROM alunos WHERE email=?", (email,))
+    
     r = cur.fetchone()
     conn.close()
     return r is not None
