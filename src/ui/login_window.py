@@ -1,7 +1,8 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
-    QMessageBox, QFrame
+    QFrame
 )
+from .app_dialog import show_warning
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
 import os
@@ -123,7 +124,7 @@ class LoginWindow(QWidget):
         senha = self.pass_input.text().strip()
 
         if not user or not senha:
-            QMessageBox.warning(self, "Erro", "Informe usuário e senha.")
+            show_warning(self, "Erro", "Informe usuário e senha.")
             return
 
         ok = validar_login(user, senha)
@@ -132,4 +133,4 @@ class LoginWindow(QWidget):
             self.on_success(ok[0])
             self.close()
         else:
-            QMessageBox.warning(self, "Erro", "Usuário ou senha inválidos.")
+            show_warning(self, "Erro", "Usuário ou senha inválidos.")

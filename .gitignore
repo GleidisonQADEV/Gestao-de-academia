@@ -12,8 +12,42 @@ dist/
 # Cache Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
 # VS Code
 .vscode/
 
-.pdf
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+
+# PDFs gerados
+*.pdf
+
+# Arquivos temporários
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Arquivos de IDE
+.idea/
+*.iml
+
+# Certificados e chaves (segurança)
+*.key
+*.pem
+*.crt
+
+# Arquivos de configuração local
+config.local.*

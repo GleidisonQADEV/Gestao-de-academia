@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import time
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "legacy_bjj.db")
@@ -17,23 +18,21 @@ def init_kids_db():
     conn = get_conn()
     cur = conn.cursor()
 
-    # Verificar se a tabela existe e se tem a estrutura antiga
+    # Verificar estrutura da tabela
     cur.execute("PRAGMA table_info(kids)")
     columns = cur.fetchall()
-    
-    # Se a tabela existe, verificar se CPF é NOT NULL
+
     cpf_is_not_null = False
     if columns:
         for column in columns:
-            if column[1] == 'cpf' and column[3] == 1:  # column[3] indica NOT NULL
+            if column[1] == 'cpf' and column[3] == 1:  # NOT NULL
                 cpf_is_not_null = True
                 break
-    
-    # Se CPF é NOT NULL, precisamos recriar a tabela
+
+    # Migrar se necessário
     if cpf_is_not_null:
         print("Migrando tabela kids para permitir CPF opcional...")
-        
-        # Criar tabela temporária com nova estrutura
+
         cur.execute("""
             CREATE TABLE kids_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,20 +62,18 @@ def init_kids_db():
                 criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
-        # Copiar dados existentes (apenas os que têm CPF)
+
         cur.execute("""
             INSERT INTO kids_new 
             SELECT * FROM kids WHERE cpf IS NOT NULL AND cpf != ''
         """)
-        
-        # Remover tabela antiga e renomear
+
         cur.execute("DROP TABLE kids")
         cur.execute("ALTER TABLE kids_new RENAME TO kids")
-        
-        print("Migração concluída!")
+
+        print("Migração kids concluída.")
+
     else:
-        # Criar tabela normalmente se não existe
         cur.execute("""
             CREATE TABLE IF NOT EXISTS kids (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,6 +108,42 @@ def init_kids_db():
     conn.close()
 
 
+# ---------------- LISTAGEM ----------------
+
+def listar_kids():
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,                -- 0
+            nome,              -- 1
+            cpf,               -- 2
+            resp_nome,         -- 3
+            resp_cpf,          -- 4
+            email,             -- 5
+            telefone,          -- 6
+            cep,               -- 7
+            endereco,          -- 8
+            data_nascimento,   -- 9
+            faixa,             --10
+            grau,              --11
+            peso,              --12
+            altura,            --13
+            plano,             --14
+            foto_path,         --15
+            certificado_path,  --16
+            ativo,             --17
+            criado_em          --18
+        FROM kids
+        ORDER BY nome
+    """)
+
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
 # ---------------- VALIDAÇÃO ----------------
 
 def cpf_kid_existe(cpf):
@@ -122,6 +155,26 @@ def cpf_kid_existe(cpf):
     return r is not None
 
 
+# ---------------- STATUS ----------------
+
+def inativar_kid(kid_id, ativo):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE kids SET ativo=? WHERE id=?", (ativo, kid_id))
+    conn.commit()
+    conn.close()
+
+
+# ---------------- EXCLUSÃO ----------------
+
+def excluir_kid(kid_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM kids WHERE id=?", (kid_id,))
+    conn.commit()
+    conn.close()
+
+
 # ---------------- INSERÇÃO ----------------
 
 def inserir_kid(
@@ -130,15 +183,12 @@ def inserir_kid(
 ):
     conn = get_conn()
     cur = conn.cursor()
-    
+
     try:
-        # Se CPF não foi fornecido, criar identificador baseado no responsável
         if not cpf:
-            # Usar primeiros 6 dígitos do CPF do responsável + timestamp simples para unicidade
-            import time
             timestamp_suffix = str(int(time.time()))[-4:]
             cpf = f"KID{resp_cpf[:6]}{timestamp_suffix}"
-        
+
         cur.execute("""
             INSERT INTO kids (
                 nome, cpf, resp_nome, resp_cpf, email, telefone, cep, endereco,
