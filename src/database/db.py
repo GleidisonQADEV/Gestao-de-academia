@@ -145,6 +145,26 @@ def init_db():
         )
     """)
 
+    # ---- tabela registros de presença ----
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS registros_presenca (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aluno_id INTEGER NOT NULL,
+            data_registro DATE NOT NULL,
+            hora_entrada TIME NOT NULL,
+            hora_saida TIME,
+            tipo_aluno TEXT NOT NULL, -- 'adulto' ou 'kid'
+            biometria_usado INTEGER DEFAULT 0,
+            observacoes TEXT,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (aluno_id) REFERENCES alunos (id)
+        )
+    """)
+    
+    # Criar índices para melhor performance
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_presenca_aluno_id ON registros_presenca(aluno_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_presenca_data ON registros_presenca(data_registro)")
+
     conn.commit()
     conn.close()
 
@@ -686,6 +706,10 @@ def obter_metricas_dashboard():
         'total': alunos_responsaveis + alunos_dependentes + kids_count
     }
     
+    # 6. Métricas de frequência
+    metricas_freq = obter_metricas_frequencia()
+    metricas.update(metricas_freq)
+    
     conn.close()
     return metricas
 
@@ -751,3 +775,180 @@ def get_planos_formatados():
     planos_formatados.append("Plano Personalizado")
     
     return planos_formatados
+
+
+# ================= GERENCIAMENTO DE PRESENÇA =================
+
+def registrar_presenca(aluno_id, tipo_aluno='adulto', horario_aula=None, biometria_usado=False, observacoes=None):
+    """Registra presença de um aluno em horário específico de aula"""
+    from datetime import datetime
+    
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    agora = datetime.now()
+    data_registro = agora.date()
+    
+    # Se não especificou horário, usar horário atual
+    if horario_aula:
+        hora_entrada = horario_aula
+    else:
+        hora_entrada = agora.time().strftime('%H:%M:%S')
+    
+    # Verificar se é dia de aula (segunda=0, quarta=2, sexta=4)
+    dia_semana = data_registro.weekday()
+    if dia_semana not in [0, 2, 4]:  # Segunda, Quarta, Sexta
+        conn.close()
+        return False, "Não é dia de aula (Segunda, Quarta ou Sexta)"
+    
+    # Verificar horários válidos de aula
+    horarios_validos = ["08:30:00", "12:00:00", "18:30:00", "19:30:00"]
+    if horario_aula and horario_aula not in horarios_validos:
+        conn.close()
+        return False, f"Horário inválido. Aulas: {', '.join(horarios_validos)}"
+    
+    # Verificar se já tem registro hoje no mesmo horário
+    cur.execute("""
+        SELECT id FROM registros_presenca 
+        WHERE aluno_id = ? AND data_registro = ? AND tipo_aluno = ? AND hora_entrada = ?
+    """, (aluno_id, data_registro, tipo_aluno, hora_entrada))
+    
+    if cur.fetchone():
+        conn.close()
+        return False, "Já registrado hoje neste horário"
+    
+    # Inserir novo registro
+    cur.execute("""
+        INSERT INTO registros_presenca 
+        (aluno_id, data_registro, hora_entrada, tipo_aluno, biometria_usado, observacoes)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (aluno_id, data_registro, hora_entrada, tipo_aluno, int(biometria_usado), observacoes))
+    
+    conn.commit()
+    conn.close()
+    return True, "Presença registrada com sucesso"
+
+def obter_metricas_frequencia():
+    """Obtém métricas de frequência considerando apenas dias de aula"""
+    from datetime import date, timedelta
+    
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    hoje = date.today()
+    
+    # Calcular últimos dias de aula
+    def obter_dias_aula_periodo(data_fim, dias_periodo):
+        dias_aula = []
+        data_atual = data_fim
+        
+        while len(dias_aula) < dias_periodo:
+            if data_atual.weekday() in [0, 2, 4]:  # Segunda, Quarta, Sexta
+                dias_aula.append(data_atual)
+            data_atual -= timedelta(days=1)
+            
+            # Evitar loop infinito
+            if (data_fim - data_atual).days > 60:
+                break
+                
+        return dias_aula
+    
+    # Últimos 5 dias de aula (aproximadamente 2 semanas)
+    ultimos_dias_aula = obter_dias_aula_periodo(hoje, 5)
+    data_inicio_periodo = min(ultimos_dias_aula) if ultimos_dias_aula else hoje - timedelta(days=14)
+    
+    metricas = {}
+    
+    # 1. Frequência de hoje (apenas se hoje for dia de aula)
+    frequencia_hoje = 0
+    if hoje.weekday() in [0, 2, 4]:
+        cur.execute("""
+            SELECT COUNT(DISTINCT r.aluno_id)
+            FROM registros_presenca r
+            LEFT JOIN alunos a ON r.aluno_id = a.id AND r.tipo_aluno = 'adulto' AND a.ativo = 1
+            LEFT JOIN kids k ON r.aluno_id = k.id AND r.tipo_aluno = 'kid' AND k.ativo = 1
+            WHERE r.data_registro = ? 
+            AND ((a.id IS NOT NULL AND a.responsavel_id IS NULL) OR (k.id IS NOT NULL))
+        """, (hoje,))
+        frequencia_hoje = cur.fetchone()[0] or 0
+    
+    # 2. Frequência por horário hoje
+    frequencia_horarios = {}
+    if hoje.weekday() in [0, 2, 4]:
+        horarios_aula = ["08:30:00", "12:00:00", "18:30:00", "19:30:00"]
+        for horario in horarios_aula:
+            cur.execute("""
+                SELECT COUNT(*)
+                FROM registros_presenca r
+                LEFT JOIN alunos a ON r.aluno_id = a.id AND r.tipo_aluno = 'adulto' AND a.ativo = 1
+                LEFT JOIN kids k ON r.aluno_id = k.id AND r.tipo_aluno = 'kid' AND k.ativo = 1
+                WHERE r.data_registro = ? AND r.hora_entrada = ?
+                AND ((a.id IS NOT NULL AND a.responsavel_id IS NULL) OR (k.id IS NOT NULL))
+            """, (hoje, horario))
+            count = cur.fetchone()[0] or 0
+            frequencia_horarios[horario] = count
+    
+    # 3. Média de frequência nos últimos dias de aula
+    if ultimos_dias_aula:
+        placeholders = ','.join(['?'] * len(ultimos_dias_aula))
+        cur.execute(f"""
+            SELECT COUNT(DISTINCT r.aluno_id) / CAST({len(ultimos_dias_aula)} AS REAL)
+            FROM registros_presenca r
+            LEFT JOIN alunos a ON r.aluno_id = a.id AND r.tipo_aluno = 'adulto' AND a.ativo = 1
+            LEFT JOIN kids k ON r.aluno_id = k.id AND r.tipo_aluno = 'kid' AND k.ativo = 1
+            WHERE r.data_registro IN ({placeholders})
+            AND ((a.id IS NOT NULL AND a.responsavel_id IS NULL) OR (k.id IS NOT NULL))
+        """, ultimos_dias_aula)
+        media_periodo = cur.fetchone()[0] or 0
+    else:
+        media_periodo = 0
+    
+    # 4. Total de alunos únicos no período
+    if ultimos_dias_aula:
+        placeholders = ','.join(['?'] * len(ultimos_dias_aula))
+        cur.execute(f"""
+            SELECT COUNT(DISTINCT r.aluno_id)
+            FROM registros_presenca r
+            LEFT JOIN alunos a ON r.aluno_id = a.id AND r.tipo_aluno = 'adulto' AND a.ativo = 1
+            LEFT JOIN kids k ON r.aluno_id = k.id AND r.tipo_aluno = 'kid' AND k.ativo = 1
+            WHERE r.data_registro IN ({placeholders})
+            AND ((a.id IS NOT NULL AND a.responsavel_id IS NULL) OR (k.id IS NOT NULL))
+        """, ultimos_dias_aula)
+        alunos_ativos_periodo = cur.fetchone()[0] or 0
+    else:
+        alunos_ativos_periodo = 0
+    
+    # 5. Total de alunos cadastrados
+    cur.execute("""
+        SELECT 
+            (SELECT COUNT(*) FROM alunos WHERE ativo = 1 AND responsavel_id IS NULL) +
+            (SELECT COUNT(*) FROM kids WHERE ativo = 1)
+    """)
+    total_alunos = cur.fetchone()[0] or 0
+    
+    # 6. Percentual de aderência às aulas
+    if total_alunos > 0:
+        percentual_aderencia = (alunos_ativos_periodo / total_alunos) * 100
+    else:
+        percentual_aderencia = 0
+    
+    # 7. Horário mais movimentado
+    horario_popular = "N/A"
+    if frequencia_horarios:
+        horario_popular = max(frequencia_horarios, key=frequencia_horarios.get)
+        horario_popular = horario_popular[:5]  # Remover segundos (08:30)
+    
+    metricas['frequencia'] = {
+        'hoje': frequencia_hoje,
+        'eh_dia_aula': hoje.weekday() in [0, 2, 4],
+        'media_periodo': round(media_periodo, 1),
+        'alunos_ativos_periodo': alunos_ativos_periodo,
+        'total_alunos': total_alunos,
+        'percentual_aderencia': round(percentual_aderencia, 1),
+        'frequencia_horarios': frequencia_horarios,
+        'horario_popular': horario_popular,
+        'dias_periodo': len(ultimos_dias_aula)
+    }
+    
+    conn.close()
+    return metricas

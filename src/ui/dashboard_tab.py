@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPalette
 
 from ui.base_tab import BaseTab
-from database.db import obter_metricas_dashboard, gerar_mensalidades_anuais
+from database.db import obter_metricas_dashboard, gerar_mensalidades_anuais, registrar_presenca
 from ui.app_dialog import show_info, show_error, show_question
 
 
@@ -154,11 +154,13 @@ class DashboardTab(BaseTab):
         self.card_pagas = self.create_metric_card("💰 Pagas no Mês", "0", "R$ 0,00", "#27AE60") 
         self.card_vencer = self.create_metric_card("⏰ A Vencer (30d)", "0", "R$ 0,00", "#F39C12")
         self.card_receita = self.create_metric_card("📈 Receita Anual", "", "R$ 0,00", "#3498DB")
+        self.card_frequencia = self.create_metric_card("👥 Frequência", "0", "Hoje", "#9B59B6")
         
         metrics_layout.addWidget(self.card_atrasadas, 0, 0)
         metrics_layout.addWidget(self.card_pagas, 0, 1)
         metrics_layout.addWidget(self.card_vencer, 1, 0)
         metrics_layout.addWidget(self.card_receita, 1, 1)
+        metrics_layout.addWidget(self.card_frequencia, 1, 2)
         
         layout.addWidget(metrics_group)
         
@@ -394,6 +396,18 @@ class DashboardTab(BaseTab):
         receita_anual = self.metricas['receita_anual']
         self.card_receita.count_label.setText("")
         self.card_receita.value_label.setText(f"R$ {receita_anual:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+        
+        # Atualizar card de frequência
+        if 'frequencia' in self.metricas:
+            frequencia = self.metricas['frequencia']
+            
+            if frequencia['eh_dia_aula']:
+                self.card_frequencia.count_label.setText(str(frequencia['hoje']))
+                horario_info = f"🕐 {frequencia['horario_popular']}" if frequencia['horario_popular'] != "N/A" else ""
+                self.card_frequencia.value_label.setText(f"{frequencia['alunos_ativos_periodo']}/{frequencia['total_alunos']} ({frequencia['percentual_aderencia']}%) {horario_info}")
+            else:
+                self.card_frequencia.count_label.setText("--")
+                self.card_frequencia.value_label.setText(f"Próxima aula: Seg/Qua/Sex")
         
         # Atualizar estatísticas de alunos
         alunos = self.metricas['alunos']
