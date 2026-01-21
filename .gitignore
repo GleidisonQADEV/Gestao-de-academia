@@ -1,56 +1,136 @@
-# Ambiente virtual
+# ============ AMBIENTES E DEPENDÊNCIAS ============
+# Ambiente virtual Python
 venv/
+env/
+virtualenv/
+.venv/
 
+# Node.js (caso adicione frontend)
+node_modules/
+npm-debug.log*
+
+# ============ BUILD E DISTRIBUIÇÃO ============
 # PyInstaller
 build/
 dist/
 *.spec
+*.egg-info/
 
-# Banco local
+# ============ BANCO DE DADOS ============
+# Bancos SQLite locais
 *.db
+*.sqlite
+*.sqlite3
 
-# Cache Python
+# Backup de bancos
+*.db.backup
+*.db.bak
+
+# ============ CACHE E TEMPORÁRIOS ============
+# Python bytecode
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.py.class
 
 # Pytest cache
 .pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
 
-# VS Code
+# Jupyter
+.ipynb_checkpoints/
+
+# ============ IDEs E EDITORES ============
+# Visual Studio Code
 .vscode/
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/extensions.json
 
+# PyCharm
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+
+# ============ SISTEMA OPERACIONAL ============
 # macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
+.fseventsd
+.VolumeIcon.icns
+
+# Windows
 ehthumbs.db
 Thumbs.db
+Desktop.ini
 
-# Logs
+# Linux
+.directory
+*~
+
+# ============ LOGS E RELATÓRIOS ============
+# Arquivos de log
 *.log
+logs/
+debug.log
+error.log
 
-# PDFs gerados
+# Relatórios de teste
+reports/
+test_report.html
+test_summary.json
+
+# ============ ARQUIVOS GERADOS ============
+# PDFs gerados dinamicamente
 *.pdf
+relatorios/*.pdf
 
-# Arquivos temporários
+# Certificados de teste
+certificados_teste/
+
+# ============ ARQUIVOS TEMPORÁRIOS ============
+# Backup e temporários
+*.backup
+*.bak
+*.old
 *.tmp
 *.temp
 *.swp
 *.swo
-*~
 
-# Arquivos de IDE
-.idea/
-*.iml
-
-# Certificados e chaves (segurança)
+# ============ SEGURANÇA ============
+# Certificados e chaves privadas
 *.key
 *.pem
 *.crt
+*.p12
+*.pfx
 
-# Arquivos de configuração local
+# Arquivos de configuração com credenciais
 config.local.*
+.env
+.env.local
+.env.production
+secrets.json
+
+# ============ ESPECÍFICO DO PROJETO ============
+# Fotos de alunos (desenvolvimento)
+fotos_teste/
+uploads_teste/
+
+# Banco de desenvolvimento
+legacy_bjj_dev.db
+legacy_bjj_test.db
