@@ -23,7 +23,33 @@
 - Verificar se todos os 93+ testes passam
 - Garantir que nenhuma funcionalidade existente foi quebrada
 
-### **4️⃣ PROTOCOLO DE LIMPEZA** 🧹
+### **4️⃣ VERIFICAÇÃO/CRIAÇÃO DE TESTES** 🔬
+#### **Verificações Obrigatórias:**
+- **Cobertura**: Verificar se nova funcionalidade tem testes adequados
+- **Casos de Teste**: Criar testes unitários para novas funções
+- **Testes de Integração**: Verificar interações entre componentes
+- **Testes de UI**: Para mudanças na interface, criar testes de UI
+- **Casos Extremos**: Testar comportamentos limite e erros
+
+#### **Comandos de Verificação:**
+```bash
+# Verificar se há arquivos de teste para nova funcionalidade
+find tests/ -name "*nome_funcionalidade*" -o -name "*test_nome*"
+
+# Verificar padrões de teste existentes
+grep -r "def test_" tests/ | grep "nova_funcionalidade"
+
+# Executar testes específicos se existirem
+python -m pytest tests/unit/test_nova_funcionalidade.py -v
+```
+
+#### **Ação Requerida:**
+- Se não existirem testes: **CRIAR** testes unitários mínimos
+- Se existirem: **EXECUTAR** e verificar cobertura
+- Documentar comportamentos testados
+- Garantir que edge cases estão cobertos
+
+### **5️⃣ PROTOCOLO DE LIMPEZA** 🧹
 #### **Verificações Obrigatórias:**
 - **Código Duplicado**: Identificar e centralizar em utils/
 - **Código Morto**: Remover funções/variáveis não utilizadas
@@ -48,7 +74,7 @@ grep -r "def " src/ | grep -v "__" | sort
 grep -r "TODO\|FIXME\|HACK\|BUG" src/
 ```
 
-### **5️⃣ TESTE PÓS-LIMPEZA** ✅
+### **6️⃣ TESTE PÓS-LIMPEZA** ✅
 ```bash
 ./t.sh
 ```
@@ -56,7 +82,7 @@ grep -r "TODO\|FIXME\|HACK\|BUG" src/
 - Confirmar que limpeza não quebrou funcionalidades
 - Validar que testes continuam 100% passando
 
-### **6️⃣ COMMIT** 📝
+### **7️⃣ COMMIT** 📝
 ```bash
 git add -A
 git commit -m "tipo: descrição clara
@@ -75,7 +101,7 @@ git commit -m "tipo: descrição clara
 - `test:` Testes
 - `chore:` Tarefas de manutenção
 
-### **7️⃣ PUSH** 🚀
+### **8️⃣ PUSH** 🚀
 ```bash
 git push
 ```
