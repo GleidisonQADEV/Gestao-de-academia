@@ -437,15 +437,34 @@ class AlunosTab(BaseTab):
         self.btn_edit = self._btn("Editar")
         self.btn_toggle = self._btn("Ativar / Inativar")
         self.btn_del = self._btn("Excluir")
+        
+        # Botão Vincular (igual ao do cadastro)
+        self.btn_vincular = QPushButton("Vincular a Responsável")
+        self.btn_vincular.setFixedSize(200, 44)
+        self.btn_vincular.setStyleSheet("""
+            QPushButton {
+                background-color: #2E86AB;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #1e5f7a;
+            }
+        """)
 
         self.btn_edit.clicked.connect(self.editar)
         self.btn_toggle.clicked.connect(self.toggle_status)
         self.btn_del.clicked.connect(self.excluir)
+        self.btn_vincular.clicked.connect(self.vincular_responsavel)
 
         self.btns.addStretch()
         self.btns.addWidget(self.btn_edit)
         self.btns.addWidget(self.btn_toggle)
         self.btns.addWidget(self.btn_del)
+        self.btns.addWidget(self.btn_vincular)
         self.btns.addStretch()
 
         root.addLayout(self.btns)
@@ -471,6 +490,7 @@ class AlunosTab(BaseTab):
         self.btn_edit.setVisible(show)
         self.btn_toggle.setVisible(show)
         self.btn_del.setVisible(show)
+        self.btn_vincular.setVisible(show)
 
     # ---------------- DADOS ----------------
 
@@ -1453,6 +1473,34 @@ class EdicaoAlunoDialog(QDialog):
         self.setup_ui()
         self.preencher_dados()
         
+    def carregar_planos_edicao(self):
+        """Carrega planos do banco de dados para edição"""
+        try:
+            plano_atual = self.plano.currentText() if hasattr(self, 'plano') else ""
+            self.plano.clear()
+            
+            # Importar aqui para evitar imports circulares
+            from database.db import get_planos_formatados
+            planos = get_planos_formatados()
+            self.plano.addItems(planos)
+            
+            # Restaurar seleção anterior se existir
+            if plano_atual:
+                index = self.plano.findText(plano_atual)
+                if index >= 0:
+                    self.plano.setCurrentIndex(index)
+                else:
+                    self.plano.setEditText(plano_atual)
+                    
+        except Exception as e:
+            # Fallback para planos padrão em caso de erro
+            self.plano.clear()
+            self.plano.addItems([
+                "Adulto - R$180",
+                "Kids (5–13) - R$150", 
+                "Plano Personalizado"
+            ])
+        
     def setup_ui(self):
         self.setWindowTitle(f"Editar Aluno - {self.dados_aluno['nome']}")
         self.setModal(True)
@@ -1746,17 +1794,7 @@ class EdicaoAlunoDialog(QDialog):
         # -------- PLANO --------
         self.plano = QComboBox()
         self.plano.setEditable(True)
-        self.plano.addItems([
-            "Adulto - R$180",
-            "Kids (5–13) - R$150", 
-            "Família: 2 adultos - R$320",
-            "Família: 1 adulto + 1 kids - R$300",
-            "Família: 2 adultos + 1 kids - R$450",
-            "Família: 1 adulto + 2 kids - R$430",
-            "Família: 1 adulto + 3 kids - R$500",
-            "Plano Personalizado",
-            "Plano Bolsista (Patrocinado)"
-        ])
+        self.carregar_planos_edicao()  # Carrega planos dinâmicos
         self.plano.setFixedWidth(INPUT_W)
         self.plano.setStyleSheet(input_style)
         form.addLayout(row("Plano:", self.plano))
@@ -2145,13 +2183,111 @@ class EdicaoAlunoDialog(QDialog):
                     self.foto_path, self.certificado_path,
                     biometria_json
                 )
-                
+            
             show_info(self, "Sucesso", f"✅ Aluno {nome} atualizado com sucesso!")
             self.accept()
             
         except Exception as e:
             show_error(self, "Erro", f"Erro ao salvar: {str(e)}")
+
+    def vincular_responsavel(self):
+        """Vincula um aluno existente a um responsável (mesma funcionalidade do cadastro)"""
+        from ui.app_dialog import show_input, show_error, show_warning, show_info
+        
+        # Solicitar CPF do aluno que será dependente
+        cpf_dependente, ok = show_input(
+            self, 
+            "Vincular Dependente", 
+            "Digite o CPF do aluno que será dependente:",
+            "000.000.000-00"
+        )
+        
+        if not ok or not cpf_dependente.strip():
+            return
             
+        # Limpar CPF (remover caracteres especiais)
+        cpf_dependente = ''.join(filter(str.isdigit, cpf_dependente.strip()))
+        
+        if len(cpf_dependente) != 11:
+            show_error(self, "CPF Inválido", "O CPF deve ter 11 dígitos.")
+            return
+        
+        # Solicitar CPF do responsável
+        cpf_responsavel, ok = show_input(
+            self, 
+            "Vincular Responsável", 
+            "Digite o CPF do responsável:",
+            "000.000.000-00"
+        )
+        
+        if not ok or not cpf_responsavel.strip():
+            return
+            
+        # Limpar CPF (remover caracteres especiais)
+        cpf_responsavel = ''.join(filter(str.isdigit, cpf_responsavel.strip()))
+        
+        if len(cpf_responsavel) != 11:
+            show_error(self, "CPF Inválido", "O CPF do responsável deve ter 11 dígitos.")
+            return
+            
+        if cpf_dependente == cpf_responsavel:
+            show_error(self, "CPF Inválido", "O dependente não pode ser responsável de si mesmo.")
+            return
+            
+        try:
+            from database.db import get_conn
+            conn = get_conn()
+            cur = conn.cursor()
+            
+            # Verificar se existe o aluno dependente
+            cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf_dependente,))
+            dependente = cur.fetchone()
+            
+            if not dependente:
+                show_error(self, "Aluno não encontrado", 
+                          f"Não foi encontrado nenhum aluno ativo com o CPF: {cpf_dependente}")
+                conn.close()
+                return
+            
+            # Verificar se existe um aluno adulto responsável com esse CPF
+            cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf_responsavel,))
+            responsavel = cur.fetchone()
+            
+            if not responsavel:
+                show_error(self, "Responsável não encontrado", 
+                          f"Não foi encontrado nenhum aluno adulto ativo com o CPF: {cpf_responsavel}")
+                conn.close()
+                return
+            
+            responsavel_id, responsavel_nome = responsavel
+            dependente_id, dependente_nome = dependente
+            
+            # Verificar se já não está vinculado
+            cur.execute("SELECT responsavel_id FROM alunos WHERE id = ?", (dependente_id,))
+            resultado = cur.fetchone()
+            
+            if resultado and resultado[0]:
+                show_warning(self, "Já vinculado", f"O aluno {dependente_nome} já possui um responsável vinculado.")
+                conn.close()
+                return
+            
+            # Vincular o aluno ao responsável
+            cur.execute("UPDATE alunos SET responsavel_id = ? WHERE id = ?", (responsavel_id, dependente_id))
+            
+            # Sincronização de plano
+            cur.execute("UPDATE alunos SET plano = ? WHERE id = ?", ("Vinculado ao responsável", dependente_id))
+            
+            conn.commit()
+            conn.close()
+            
+            show_info(self, "Sucesso", f"Aluno {dependente_nome} vinculado com sucesso ao responsável: {responsavel_nome}")
+            
+            # Recarregar dados
+            self.load()
+                
+        except Exception as e:
+            show_error(self, "Erro", f"Erro ao vincular responsável: {str(e)}")
+
     def cancelar_edicao(self):
         """Cancela a edição com confirmação se houver alterações"""
         resultado = show_question(

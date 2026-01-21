@@ -1101,3 +1101,337 @@ class NovaMensalidadeDialog(FinanceiroDialog):
         except Exception as e:
             show_error(self, "Erro ao criar mensalidade", f"Erro: {str(e)}")
 
+
+class EditarMensalidadeDialog(FinanceiroDialog):
+    def __init__(self, parent, dados):
+        super().__init__("✏️ Editar Mensalidade", parent)
+        self.dados = dados
+        self.setFixedSize(500, 700)
+        self.build_ui()
+        self.preencher_campos()
+
+    def build_ui(self):
+        # Título
+        title = QLabel("Editar Mensalidade")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #333; margin-bottom: 20px;")
+        self.content_layout.addWidget(title)
+        
+        # Info do aluno (read-only)
+        info_aluno = QLabel(f"📝 Aluno: {self.dados[9]}")  # Nome do aluno
+        info_aluno.setStyleSheet("""
+            QLabel {
+                background: rgba(229,9,20,0.1);
+                color: #333;
+                padding: 12px;
+                border-radius: 8px;
+                font-weight: bold;
+                border: 2px solid rgba(229,9,20,0.3);
+            }
+        """)
+        self.content_layout.addWidget(info_aluno)
+        
+        # Formulário
+        form_widget = QWidget()
+        form_layout = QFormLayout(form_widget)
+        form_layout.setSpacing(15)
+        
+        # Estilo dos campos (cor preta como no resto do projeto)
+        field_style = """
+            QComboBox, QLineEdit, QDateEdit, QTextEdit {
+                background-color: rgba(255,255,255,0.95);
+                padding: 7px 10px;
+                border-radius: 10px;
+                border: 1.5px solid #ccc;
+                font-size: 13px;
+                color: #111;
+            }
+            QComboBox:focus, QLineEdit:focus, QDateEdit:focus, QTextEdit:focus {
+                border: 1.5px solid #e50914;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                border: 2px solid #e50914;
+                border-radius: 8px;
+                selection-background-color: #e50914;
+                selection-color: white;
+                padding: 5px;
+                font-size: 13px;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                background-color: white;
+                color: #333;
+                padding: 8px 12px;
+                margin: 1px;
+                border-radius: 5px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #f8f9fa;
+                color: #e50914;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #e50914;
+                color: white;
+                font-weight: bold;
+            }
+        """
+
+        # Plano
+        self.plano_combo = QComboBox()
+        self.plano_combo.setEditable(True)
+        self.carregar_planos()
+        self.plano_combo.setStyleSheet(field_style)
+        
+        label_plano = QLabel("Plano:")
+        label_plano.setStyleSheet("font-weight: bold; color: #333;")
+        form_layout.addRow(label_plano, self.plano_combo)
+
+        # Valor
+        self.valor_input = QLineEdit()
+        self.valor_input.setPlaceholderText("Digite o valor da mensalidade")
+        self.valor_input.setStyleSheet(field_style)
+        
+        label_valor = QLabel("Valor (R$):")
+        label_valor.setStyleSheet("font-weight: bold; color: #333;")
+        form_layout.addRow(label_valor, self.valor_input)
+
+        # Data de vencimento
+        self.data_venc = QDateEdit()
+        self.data_venc.setCalendarPopup(True)
+        self.data_venc.setDisplayFormat("dd/MM/yyyy")
+        self.data_venc.setStyleSheet(field_style)
+        
+        label_data = QLabel("Data de Vencimento:")
+        label_data.setStyleSheet("font-weight: bold; color: #333;")
+        form_layout.addRow(label_data, self.data_venc)
+
+        # Status
+        self.status_combo = QComboBox()
+        self.status_combo.addItems(["PENDENTE", "PAGO", "VENCIDO"])
+        self.status_combo.setStyleSheet(field_style)
+        
+        label_status = QLabel("Status:")
+        label_status.setStyleSheet("font-weight: bold; color: #333;")
+        form_layout.addRow(label_status, self.status_combo)
+
+        # Observações
+        self.obs_input = QTextEdit()
+        self.obs_input.setMaximumHeight(80)
+        self.obs_input.setPlaceholderText("Digite observações sobre esta mensalidade (opcional)")
+        self.obs_input.setStyleSheet(field_style)
+        
+        label_obs = QLabel("Observações:")
+        label_obs.setStyleSheet("font-weight: bold; color: #333;")
+        form_layout.addRow(label_obs, self.obs_input)
+        
+        self.content_layout.addWidget(form_widget)
+        
+        # Área de botões adicionais
+        buttons_area = QHBoxLayout()
+        
+        # Botão Vincular (igual ao do cadastro)
+        btn_vincular = QPushButton("Vincular a Responsável")
+        btn_vincular.setFixedSize(200, 44)
+        btn_vincular.setStyleSheet("""
+            QPushButton {
+                background-color: #2E86AB;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #1e5f7a;
+            }
+        """)
+        btn_vincular.clicked.connect(self.vincular_mensalidade)
+        
+        buttons_area.addWidget(btn_vincular)
+        buttons_area.addStretch()
+        
+        self.content_layout.addLayout(buttons_area)
+        
+        # Botões principais
+        self.add_button("Cancelar", self.reject, False)
+        self.add_button("💾 Salvar Alterações", self.salvar_alteracoes, True)
+
+    def carregar_planos(self):
+        """Carrega planos do banco de dados"""
+        try:
+            from database.db import get_planos_formatados
+            planos = get_planos_formatados()
+            self.plano_combo.addItems(planos)
+        except Exception:
+            # Fallback para planos padrão
+            self.plano_combo.addItems([
+                "Adulto - R$180",
+                "Kids (5–13) - R$150", 
+                "Plano Personalizado"
+            ])
+
+    def preencher_campos(self):
+        """Preenche os campos com os dados atuais da mensalidade"""
+        # Plano (se disponível nos dados)
+        try:
+            plano_atual = self.dados[10] if len(self.dados) > 10 else "Adulto - R$180"
+            index = self.plano_combo.findText(plano_atual)
+            if index >= 0:
+                self.plano_combo.setCurrentIndex(index)
+            else:
+                self.plano_combo.setEditText(plano_atual)
+        except:
+            pass
+            
+        # Valor
+        self.valor_input.setText(str(self.dados[2]))  # valor
+        
+        # Data de vencimento
+        try:
+            data_venc = datetime.strptime(self.dados[3], "%Y-%m-%d").date()
+            self.data_venc.setDate(QDate(data_venc.year, data_venc.month, data_venc.day))
+        except:
+            self.data_venc.setDate(QDate.currentDate())
+        
+        # Status
+        status = self.dados[4].upper() if self.dados[4] else "PENDENTE"
+        index = self.status_combo.findText(status)
+        if index >= 0:
+            self.status_combo.setCurrentIndex(index)
+        
+        # Observações
+        obs = self.dados[7] or ""  # observacoes
+        self.obs_input.setPlainText(obs)
+
+    def vincular_mensalidade(self):
+        """Vincula um aluno existente a um responsável (mesma funcionalidade do cadastro)"""
+        from ui.app_dialog import show_input, show_error, show_warning, show_info
+        
+        # Solicitar CPF do aluno que será dependente
+        cpf_dependente, ok = show_input(
+            self, 
+            "Vincular Dependente", 
+            "Digite o CPF do aluno que será dependente:",
+            "000.000.000-00"
+        )
+        
+        if not ok or not cpf_dependente.strip():
+            return
+            
+        # Limpar CPF (remover caracteres especiais)
+        cpf_dependente = ''.join(filter(str.isdigit, cpf_dependente.strip()))
+        
+        if len(cpf_dependente) != 11:
+            show_error(self, "CPF Inválido", "O CPF deve ter 11 dígitos.")
+            return
+        
+        # Solicitar CPF do responsável
+        cpf_responsavel, ok = show_input(
+            self, 
+            "Vincular Responsável", 
+            "Digite o CPF do responsável:",
+            "000.000.000-00"
+        )
+        
+        if not ok or not cpf_responsavel.strip():
+            return
+            
+        # Limpar CPF (remover caracteres especiais)
+        cpf_responsavel = ''.join(filter(str.isdigit, cpf_responsavel.strip()))
+        
+        if len(cpf_responsavel) != 11:
+            show_error(self, "CPF Inválido", "O CPF do responsável deve ter 11 dígitos.")
+            return
+            
+        if cpf_dependente == cpf_responsavel:
+            show_error(self, "CPF Inválido", "O dependente não pode ser responsável de si mesmo.")
+            return
+            
+        try:
+            from database.db import get_conn
+            conn = get_conn()
+            cur = conn.cursor()
+            
+            # Verificar se existe o aluno dependente
+            cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf_dependente,))
+            dependente = cur.fetchone()
+            
+            if not dependente:
+                show_error(self, "Aluno não encontrado", 
+                          f"Não foi encontrado nenhum aluno ativo com o CPF: {cpf_dependente}")
+                conn.close()
+                return
+            
+            # Verificar se existe um aluno adulto responsável com esse CPF
+            cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf_responsavel,))
+            responsavel = cur.fetchone()
+            
+            if not responsavel:
+                show_error(self, "Responsável não encontrado", 
+                          f"Não foi encontrado nenhum aluno adulto ativo com o CPF: {cpf_responsavel}")
+                conn.close()
+                return
+            
+            responsavel_id, responsavel_nome = responsavel
+            dependente_id, dependente_nome = dependente
+            
+            # Verificar se já não está vinculado
+            cur.execute("SELECT responsavel_id FROM alunos WHERE id = ?", (dependente_id,))
+            resultado = cur.fetchone()
+            
+            if resultado and resultado[0]:
+                show_warning(self, "Já vinculado", f"O aluno {dependente_nome} já possui um responsável vinculado.")
+                conn.close()
+                return
+            
+            # Vincular o aluno ao responsável
+            cur.execute("UPDATE alunos SET responsavel_id = ? WHERE id = ?", (responsavel_id, dependente_id))
+            
+            # Sincronização de plano
+            cur.execute("UPDATE alunos SET plano = ? WHERE id = ?", ("Vinculado ao responsável", dependente_id))
+            
+            conn.commit()
+            conn.close()
+            
+            show_info(self, "Sucesso", f"Aluno {dependente_nome} vinculado com sucesso ao responsável: {responsavel_nome}")
+            
+            # Recarregar dados se possível
+            if hasattr(self, 'load'):
+                self.load()
+                
+        except Exception as e:
+            show_error(self, "Erro", f"Erro ao vincular responsável: {str(e)}")
+
+    def salvar_alteracoes(self):
+        """Salva as alterações da mensalidade"""
+        try:
+            plano_texto = self.plano_combo.currentText()
+            valor = float(self.valor_input.text().replace(",", "."))
+            data_venc = self.data_venc.date().toString("yyyy-MM-dd")
+            status = self.status_combo.currentText()
+            obs = self.obs_input.toPlainText()
+            
+            mensalidade_id = self.dados[0]  # id
+            
+            # Atualizar no banco de dados
+            from database.db import get_conn
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE mensalidades 
+                SET valor=?, data_vencimento=?, status=?, observacoes=?
+                WHERE id=?
+            """, (valor, data_venc, status, obs, mensalidade_id))
+            conn.commit()
+            conn.close()
+            
+            show_info(self, "Sucesso", f"Mensalidade atualizada com sucesso!\n\nPlano: {plano_texto}\nValor: R$ {valor:.2f}")
+            self.accept()
+            
+        except ValueError:
+            show_error(self, "Erro", "Valor inválido. Use apenas números (ex: 180.00)")
+        except Exception as e:
+            show_error(self, "Erro ao salvar alterações", f"Erro: {str(e)}")
+
+

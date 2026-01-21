@@ -205,6 +205,30 @@ class ConfigTab(BaseTab):
         dialog = ChangePasswordDialog("admin")
         dialog.exec()
         
+    def notificar_atualizacao_planos(self):
+        """Notifica outras abas sobre atualização nos planos"""
+        try:
+            # Buscar a janela principal através da hierarquia de parents
+            parent = self.parent()
+            while parent and not hasattr(parent, 'cadastro_tab'):
+                parent = parent.parent()
+                
+            if parent and hasattr(parent, 'cadastro_tab'):
+                # Atualizar aba de cadastro
+                if hasattr(parent.cadastro_tab, 'carregar_planos'):
+                    parent.cadastro_tab.carregar_planos()
+                    
+                # Atualizar aba de alunos se tiver algum dialog de edição aberto
+                if hasattr(parent, 'alunos_tab'):
+                    alunos_tab = parent.alunos_tab
+                    # Tentar encontrar dialogs de edição abertos
+                    for child in alunos_tab.findChildren(QDialog):
+                        if hasattr(child, 'plano') and hasattr(child, 'carregar_planos_edicao'):
+                            child.carregar_planos_edicao()
+                            
+        except Exception as e:
+            print(f"Erro ao notificar atualização de planos: {e}")
+        
     def carregar_planos(self):
         """Carrega a lista de planos em cards"""
         try:
@@ -241,11 +265,36 @@ class ConfigTab(BaseTab):
         except Exception as e:
             show_error(self, "Erro ao carregar planos", f"Erro: {str(e)}")
     
+    def notificar_atualizacao_planos(self):
+        """Notifica outras abas sobre atualização nos planos"""
+        try:
+            # Buscar a janela principal através da hierarquia de parents
+            parent = self.parent()
+            while parent and not hasattr(parent, 'cadastro_tab'):
+                parent = parent.parent()
+                
+            if parent and hasattr(parent, 'cadastro_tab'):
+                # Atualizar aba de cadastro
+                if hasattr(parent.cadastro_tab, 'carregar_planos'):
+                    parent.cadastro_tab.carregar_planos()
+                    
+                # Atualizar aba de alunos se tiver algum dialog de edição aberto
+                if hasattr(parent, 'alunos_tab'):
+                    alunos_tab = parent.alunos_tab
+                    # Tentar encontrar dialogs de edição abertos
+                    for child in alunos_tab.findChildren(QDialog):
+                        if hasattr(child, 'plano') and hasattr(child, 'carregar_planos_edicao'):
+                            child.carregar_planos_edicao()
+                            
+        except Exception as e:
+            print(f"Erro ao notificar atualização de planos: {e}")
+    
     def novo_plano(self):
         """Abre dialog para criar novo plano"""
         dialog = PlanoDialog(self, "Novo Plano")
         if dialog.exec() == QDialog.Accepted:
             self.carregar_planos()
+            self.notificar_atualizacao_planos()
     
     def editar_plano(self):
         """Método legacy - agora usa cards individuais"""
@@ -260,6 +309,7 @@ class ConfigTab(BaseTab):
         dialog = PlanoDialog(self, "Editar Plano", plano_id, nome, valor)
         if dialog.exec() == QDialog.Accepted:
             self.carregar_planos()
+            self.notificar_atualizacao_planos()
     
     def excluir_plano_card(self, plano_id, nome):
         """Exclui plano a partir do card"""
@@ -268,6 +318,7 @@ class ConfigTab(BaseTab):
                 excluir_plano(plano_id)
                 show_info(self, "Sucesso", "Plano excluído com sucesso!")
                 self.carregar_planos()
+                self.notificar_atualizacao_planos()
             except Exception as e:
                 show_error(self, "Erro ao excluir plano", f"Erro: {str(e)}")
 
