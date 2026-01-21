@@ -437,34 +437,15 @@ class AlunosTab(BaseTab):
         self.btn_edit = self._btn("Editar")
         self.btn_toggle = self._btn("Ativar / Inativar")
         self.btn_del = self._btn("Excluir")
-        
-        # Botão Vincular (igual ao do cadastro)
-        self.btn_vincular = QPushButton("Vincular a Responsável")
-        self.btn_vincular.setFixedSize(200, 44)
-        self.btn_vincular.setStyleSheet("""
-            QPushButton {
-                background-color: #2E86AB;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #1e5f7a;
-            }
-        """)
 
         self.btn_edit.clicked.connect(self.editar)
         self.btn_toggle.clicked.connect(self.toggle_status)
         self.btn_del.clicked.connect(self.excluir)
-        self.btn_vincular.clicked.connect(self.vincular_responsavel)
 
         self.btns.addStretch()
         self.btns.addWidget(self.btn_edit)
         self.btns.addWidget(self.btn_toggle)
         self.btns.addWidget(self.btn_del)
-        self.btns.addWidget(self.btn_vincular)
         self.btns.addStretch()
 
         root.addLayout(self.btns)
@@ -1449,16 +1430,6 @@ class AlunosTab(BaseTab):
         self.btn_edit.setVisible(show)
         self.btn_toggle.setVisible(show)
         self.btn_del.setVisible(show)
-        self.btn_vincular.setVisible(show)
-
-    def vincular_responsavel(self):
-        """Vincula um aluno existente a um responsável (usando função utilitária)"""
-        from utils.vincular_utils import vincular_aluno_responsavel
-        
-        if vincular_aluno_responsavel(self):
-            # Recarregar dados para mostrar as mudanças
-            self.load()
-
 
 # ================= DIALOG DE EDIÇÃO =================
 class EdicaoAlunoDialog(QDialog):
