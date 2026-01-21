@@ -130,9 +130,10 @@ class TestCadastroVinculacao:
         mock_conn.close.assert_called_once()
     
     @patch('database.db.get_conn')
+    @patch('ui.app_dialog.show_warning')
     @patch('ui.app_dialog.show_info')
     @patch('ui.app_dialog.show_input')
-    def test_vincular_responsavel_sucesso(self, mock_show_input, mock_show_info, mock_get_conn, cadastro_tab):
+    def test_vincular_responsavel_sucesso(self, mock_show_input, mock_show_info, mock_show_warning, mock_get_conn, cadastro_tab):
         """Teste vinculação bem-sucedida"""
         # Mock do banco de dados
         mock_conn = Mock()
@@ -143,6 +144,9 @@ class TestCadastroVinculacao:
         # Mock do callback de refresh
         mock_callback = Mock()
         cadastro_tab.refresh_callback = mock_callback
+        
+        # Mock da função abrir_edicao_responsavel para evitar problemas de navegação
+        cadastro_tab.abrir_edicao_responsavel = Mock()
         
         # Simular dependente e responsável encontrados, sem vinculação prévia
         mock_cursor.fetchone.side_effect = [
@@ -164,6 +168,16 @@ class TestCadastroVinculacao:
         mock_show_info.assert_called_once_with(
             cadastro_tab, "Sucesso", "Aluno João Silva vinculado com sucesso ao responsável: Maria Silva"
         )
+        
+        # Verificar que mostrou dialog obrigatório
+        mock_show_warning.assert_called_once()
+        warning_call = mock_show_warning.call_args[0]
+        assert "Atualização de Plano Obrigatória" in warning_call[1]
+        assert "Maria Silva" in warning_call[2]
+        assert "João Silva" in warning_call[2]
+        
+        # Verificar que chamou navegação para responsável
+        cadastro_tab.abrir_edicao_responsavel.assert_called_once_with(2, "Maria Silva")
         
         # Verificar que chamou callback de refresh
         mock_callback.assert_called_once()
