@@ -1305,103 +1305,13 @@ class EditarMensalidadeDialog(FinanceiroDialog):
         self.obs_input.setPlainText(obs)
 
     def vincular_mensalidade(self):
-        """Vincula um aluno existente a um responsável (mesma funcionalidade do cadastro)"""
-        from ui.app_dialog import show_input, show_error, show_warning, show_info
+        """Vincula um aluno existente a um responsável (usando função utilitária)"""
+        from utils.vincular_utils import vincular_aluno_responsavel
         
-        # Solicitar CPF do aluno que será dependente
-        cpf_dependente, ok = show_input(
-            self, 
-            "Vincular Dependente", 
-            "Digite o CPF do aluno que será dependente:",
-            "000.000.000-00"
-        )
-        
-        if not ok or not cpf_dependente.strip():
-            return
-            
-        # Limpar CPF (remover caracteres especiais)
-        cpf_dependente = ''.join(filter(str.isdigit, cpf_dependente.strip()))
-        
-        if len(cpf_dependente) != 11:
-            show_error(self, "CPF Inválido", "O CPF deve ter 11 dígitos.")
-            return
-        
-        # Solicitar CPF do responsável
-        cpf_responsavel, ok = show_input(
-            self, 
-            "Vincular Responsável", 
-            "Digite o CPF do responsável:",
-            "000.000.000-00"
-        )
-        
-        if not ok or not cpf_responsavel.strip():
-            return
-            
-        # Limpar CPF (remover caracteres especiais)
-        cpf_responsavel = ''.join(filter(str.isdigit, cpf_responsavel.strip()))
-        
-        if len(cpf_responsavel) != 11:
-            show_error(self, "CPF Inválido", "O CPF do responsável deve ter 11 dígitos.")
-            return
-            
-        if cpf_dependente == cpf_responsavel:
-            show_error(self, "CPF Inválido", "O dependente não pode ser responsável de si mesmo.")
-            return
-            
-        try:
-            from database.db import get_conn
-            conn = get_conn()
-            cur = conn.cursor()
-            
-            # Verificar se existe o aluno dependente
-            cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf_dependente,))
-            dependente = cur.fetchone()
-            
-            if not dependente:
-                show_error(self, "Aluno não encontrado", 
-                          f"Não foi encontrado nenhum aluno ativo com o CPF: {cpf_dependente}")
-                conn.close()
-                return
-            
-            # Verificar se existe um aluno adulto responsável com esse CPF
-            cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf_responsavel,))
-            responsavel = cur.fetchone()
-            
-            if not responsavel:
-                show_error(self, "Responsável não encontrado", 
-                          f"Não foi encontrado nenhum aluno adulto ativo com o CPF: {cpf_responsavel}")
-                conn.close()
-                return
-            
-            responsavel_id, responsavel_nome = responsavel
-            dependente_id, dependente_nome = dependente
-            
-            # Verificar se já não está vinculado
-            cur.execute("SELECT responsavel_id FROM alunos WHERE id = ?", (dependente_id,))
-            resultado = cur.fetchone()
-            
-            if resultado and resultado[0]:
-                show_warning(self, "Já vinculado", f"O aluno {dependente_nome} já possui um responsável vinculado.")
-                conn.close()
-                return
-            
-            # Vincular o aluno ao responsável
-            cur.execute("UPDATE alunos SET responsavel_id = ? WHERE id = ?", (responsavel_id, dependente_id))
-            
-            # Sincronização de plano
-            cur.execute("UPDATE alunos SET plano = ? WHERE id = ?", ("Vinculado ao responsável", dependente_id))
-            
-            conn.commit()
-            conn.close()
-            
-            show_info(self, "Sucesso", f"Aluno {dependente_nome} vinculado com sucesso ao responsável: {responsavel_nome}")
-            
+        if vincular_aluno_responsavel(self):
             # Recarregar dados se possível
             if hasattr(self, 'load'):
                 self.load()
-                
-        except Exception as e:
-            show_error(self, "Erro", f"Erro ao vincular responsável: {str(e)}")
 
     def salvar_alteracoes(self):
         """Salva as alterações da mensalidade"""
