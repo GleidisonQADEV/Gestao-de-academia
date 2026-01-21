@@ -1,14 +1,12 @@
 import os
-from datetime import date
+from datetime import date, datetime
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, 
     QDateEdit, QDialog, QFormLayout, QLineEdit, QTextEdit, QMessageBox, 
-    QFrame, QScrollArea
+    QFrame, QScrollArea, QTabWidget
 )
 from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QPixmap
-import os
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QPixmap, QFont
 
 from ui.base_tab import BaseTab
 from database.db import (
@@ -25,6 +23,16 @@ class FinanceiroTab(BaseTab):
         self.mensalidades_selecionadas = []  # Lista de mensalidades selecionadas
         self.build_ui()
         self.load()
+        
+    @property
+    def cards_layout(self):
+        """Propriedade para compatibilidade - retorna layout da aba atual"""
+        current_tab = self.tab_widget.currentWidget()
+        if current_tab:
+            content_widget = current_tab.widget()
+            if content_widget:
+                return content_widget.layout()
+        return None
 
     def build_ui(self):
         layout = self.layout()  # Usa o layout já disponível do BaseTab
@@ -102,47 +110,37 @@ class FinanceiroTab(BaseTab):
         filter_layout.addStretch()
         layout.addLayout(filter_layout)
 
-        # Container para os cards com scroll
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
+        # Widget de abas para meses
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setStyleSheet("""
+            QTabWidget::pane {
                 background: transparent;
                 border: none;
             }
-            QScrollBar:vertical {
-                background: rgba(255,255,255,0.3);
-                width: 8px;
-                border-radius: 4px;
+            QTabBar::tab {
+                background: rgba(255,255,255,0.1);
+                color: white;
+                padding: 10px 20px;
+                margin-right: 2px;
+                border-radius: 8px 8px 0px 0px;
+                font-weight: bold;
+                font-size: 13px;
             }
-            QScrollBar::handle:vertical {
-                background: #e50914;
-                border-radius: 4px;
-                min-height: 20px;
+            QTabBar::tab:selected {
+                background: rgba(229,9,20,0.8);
+                color: white;
+            }
+            QTabBar::tab:hover {
+                background: rgba(255,255,255,0.2);
             }
         """)
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
         
-        # Container principal centralizado
-        main_container = QWidget()
-        main_container.setStyleSheet("background: transparent;")
-        main_layout = QHBoxLayout(main_container)
-        main_layout.setContentsMargins(0, 10, 0, 10)
+        # Criar abas para os últimos 6 meses
+        self.criar_abas_meses()
         
-        # Container dos cards centralizado sem fundo
-        self.cards_container = QWidget()
-        self.cards_container.setFixedWidth(800)
-        self.cards_container.setStyleSheet("background: transparent; border: none;")
-        self.cards_layout = QVBoxLayout(self.cards_container)
-        self.cards_layout.setSpacing(12)
-        self.cards_layout.setContentsMargins(15, 15, 15, 15)
+        layout.addWidget(self.tab_widget)
         
-        # Centralizar o container de cards
-        main_layout.addStretch()
-        main_layout.addWidget(self.cards_container)
-        main_layout.addStretch()
-        
-        scroll_area.setWidget(main_container)
-        layout.addWidget(scroll_area)
         
         # Rodapé com botões de ação
         footer_widget = QWidget()
@@ -264,7 +262,7 @@ class FinanceiroTab(BaseTab):
         # Removido hover para não conflitar com seleção
         card.setStyleSheet("""
             QFrame {
-                background: rgba(255,255,255,0.1);
+                background: transparent;
                 border-radius: 12px;
                 border: 1px solid rgba(255,255,255,0.3);
                 margin: 5px;
@@ -488,38 +486,19 @@ class FinanceiroTab(BaseTab):
             # Verificar se precisa resetar para novo mês
             self.verificar_reset_mensal()
             
-            dados = listar_mensalidades()
-            self.popular_cards(dados)
+            # Carregar mensalidades da aba atual (mês atual)
+            mes_atual = self.tab_widget.currentIndex() + 1  # +1 porque mês começa em 1
+            self.carregar_mensalidades_mes(mes_atual)
             
         except Exception as e:
             show_error(self, "Erro ao carregar dados", f"Erro: {str(e)}")
 
-    def popular_cards(self, dados):
-        """Popula os cards com os dados das mensalidades"""
-        # Limpar cards existentes
-        while self.cards_layout.count():
-            child = self.cards_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-        
-        # Criar novo card para cada mensalidade
-        for row in dados:
-            card = self.create_mensalidade_card(row)
-            self.cards_layout.addWidget(card)
-        
-        # Adicionar espaçador no final
-        self.cards_layout.addStretch()
-
     def filtrar_dados(self):
-        """Filtra dados por status"""
-        status = self.status_filter.currentText()
+        """Filtra dados por status na aba atual"""
         try:
-            if status == "Todos":
-                dados = listar_mensalidades()
-            else:
-                dados = listar_mensalidades(status)
-            
-            self.popular_cards(dados)
+            # Recarregar mensalidades da aba atual com filtro aplicado
+            mes_atual = self.tab_widget.currentIndex() + 1  # +1 porque mês começa em 1
+            self.carregar_mensalidades_mes(mes_atual)
         except Exception as e:
             show_error(self, "Erro ao filtrar", f"Erro: {str(e)}")
 
@@ -712,7 +691,6 @@ class FinanceiroTab(BaseTab):
     def verificar_reset_mensal(self):
         """Verifica se precisa resetar status mensais"""
         try:
-            from datetime import date
             hoje = date.today()
             mes_atual = hoje.month
             ano_atual = hoje.year
@@ -811,6 +789,132 @@ class FinanceiroTab(BaseTab):
             
         except Exception as e:
             print(f"Erro ao resetar mensalidades: {e}")
+
+    def criar_abas_meses(self):
+        """Cria abas para cada mês do ano"""
+        meses = [
+            ("01", "Janeiro"),
+            ("02", "Fevereiro"), 
+            ("03", "Março"),
+            ("04", "Abril"),
+            ("05", "Maio"),
+            ("06", "Junho"),
+            ("07", "Julho"),
+            ("08", "Agosto"),
+            ("09", "Setembro"),
+            ("10", "Outubro"),
+            ("11", "Novembro"),
+            ("12", "Dezembro")
+        ]
+        
+        for mes_num, mes_nome in meses:
+            # Criar scroll area para o mês
+            scroll_area = QScrollArea()
+            scroll_area.setWidgetResizable(True)
+            scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            scroll_area.setStyleSheet("""
+                QScrollArea {
+                    border: none;
+                    background: transparent;
+                }
+                QScrollBar:vertical {
+                    background-color: rgba(0,0,0,0.2);
+                    width: 10px;
+                    border-radius: 5px;
+                }
+                QScrollBar::handle:vertical {
+                    background-color: rgba(229,9,20,0.7);
+                    border-radius: 5px;
+                    min-height: 20px;
+                }
+                QScrollBar::handle:vertical:hover {
+                    background-color: rgba(229,9,20,0.9);
+                }
+            """)
+            
+            # Widget de conteúdo para cada mês
+            content_widget = QWidget()
+            content_widget.setStyleSheet("background: transparent;")
+            layout = QVBoxLayout(content_widget)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+            layout.setSpacing(10)
+            layout.setContentsMargins(10, 10, 10, 10)
+            
+            scroll_area.setWidget(content_widget)
+            self.tab_widget.addTab(scroll_area, mes_nome)
+        
+        # Definir mês atual como selecionado
+        mes_atual = datetime.now().month - 1  # -1 porque índice começa em 0
+        self.tab_widget.setCurrentIndex(mes_atual)
+        
+    def on_tab_changed(self, index):
+        """Chamado quando a aba é alterada"""
+        self.carregar_mensalidades_mes(index + 1)  # +1 porque mês começa em 1
+        
+    def carregar_mensalidades_mes(self, mes):
+        """Carrega mensalidades do mês específico"""
+        try:
+            # Obter scroll area da aba atual
+            current_tab = self.tab_widget.currentWidget()
+            if not current_tab:
+                return
+                
+            content_widget = current_tab.widget()
+            if not content_widget:
+                return
+                
+            layout = content_widget.layout()
+            
+            # Limpar layout atual
+            self.clear_layout(layout)
+            
+            # Aplicar filtro de status
+            status = self.status_filter.currentText()
+            if status == "Todos":
+                mensalidades = listar_mensalidades()
+            else:
+                mensalidades = listar_mensalidades(status)
+            
+            mensalidades_mes = []
+            
+            for mensalidade in mensalidades:
+                # Verificar se a mensalidade é do mês desejado
+                # dados[3] = data_vencimento
+                data_venc = mensalidade[3] if len(mensalidade) > 3 else ''
+                if data_venc and len(data_venc) >= 7:  # YYYY-MM-DD
+                    mes_mensalidade = int(data_venc.split('-')[1])
+                    if mes_mensalidade == mes:
+                        mensalidades_mes.append(mensalidade)
+            
+            if mensalidades_mes:
+                for mensalidade in mensalidades_mes:
+                    card = self.create_mensalidade_card(mensalidade)
+                    layout.addWidget(card)
+            else:
+                # Mostrar mensagem quando não há mensalidades
+                label = QLabel(f"Nenhuma mensalidade encontrada para este mês")
+                label.setStyleSheet("""
+                    QLabel {
+                        color: #666;
+                        font-size: 14px;
+                        padding: 20px;
+                        text-align: center;
+                        font-style: italic;
+                    }
+                """)
+                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                layout.addWidget(label)
+                
+        except Exception as e:
+            print(f"Erro ao carregar mensalidades do mês: {e}")
+    
+    def clear_layout(self, layout):
+        """Limpa todos os widgets de um layout"""
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
 
 
 class EditarMensalidadeDialog(QDialog):
@@ -926,6 +1030,7 @@ class EditarMensalidadeDialog(QDialog):
             "Plano Bolsista (Patrocinado)"
         ])
         self.plano.setStyleSheet(input_style)
+        self.plano.currentTextChanged.connect(self.on_plano_changed)
         
         # Definir plano atual
         plano_atual = self.dados[8] if len(self.dados) > 8 and self.dados[8] else "Adulto - R$180"
@@ -934,6 +1039,21 @@ class EditarMensalidadeDialog(QDialog):
             self.plano.setCurrentIndex(index)
         
         card_layout.addWidget(self.plano)
+        
+        # Campo Valor Personalizado (inicialmente oculto)
+        self.valor_personalizado_label = QLabel("Valor Personalizado:")
+        self.valor_personalizado_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333; margin-top: 10px;")
+        self.valor_personalizado_label.setVisible(False)
+        card_layout.addWidget(self.valor_personalizado_label)
+        
+        self.valor_personalizado = QLineEdit()
+        self.valor_personalizado.setPlaceholderText("Digite o valor (ex: 250.00)")
+        self.valor_personalizado.setStyleSheet(input_style)
+        self.valor_personalizado.setVisible(False)
+        card_layout.addWidget(self.valor_personalizado)
+        
+        # Verificar se deve mostrar o campo de valor personalizado no início
+        self.on_plano_changed(plano_atual)
         
         # Campo Status
         status_label = QLabel("Status:")
@@ -970,7 +1090,24 @@ class EditarMensalidadeDialog(QDialog):
         """)
         btn_cancelar.clicked.connect(self.reject)
         
-        btn_salvar = QPushButton("Salvar Alterações")
+        btn_vincular = QPushButton("Vincular")
+        btn_vincular.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border-radius: 8px;
+                padding: 12px 25px;
+                font-weight: bold;
+                font-size: 14px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+        """)
+        btn_vincular.clicked.connect(self.vincular_responsavel)
+        
+        btn_salvar = QPushButton("Salvar")
         btn_salvar.setStyleSheet("""
             QPushButton {
                 background-color: #e50914;
@@ -988,11 +1125,25 @@ class EditarMensalidadeDialog(QDialog):
         btn_salvar.clicked.connect(self.salvar)
         
         buttons_layout.addWidget(btn_cancelar)
+        buttons_layout.addWidget(btn_vincular)
         buttons_layout.addWidget(btn_salvar)
         
         card_layout.addLayout(buttons_layout)
         
         main.addWidget(card)
+    
+    def on_plano_changed(self, plano_texto):
+        """Controla a visibilidade do campo de valor personalizado"""
+        is_personalizado = "personalizado" in plano_texto.lower()
+        self.valor_personalizado_label.setVisible(is_personalizado)
+        self.valor_personalizado.setVisible(is_personalizado)
+        
+        # Se é personalizado e já tem um valor definido no plano, preencher o campo
+        if is_personalizado and "r$" in plano_texto.lower():
+            import re
+            match = re.search(r'r\$(\d+(?:\.\d{2})?)', plano_texto.lower())
+            if match:
+                self.valor_personalizado.setText(match.group(1))
     
     def salvar(self):
         """Salva as alterações da mensalidade"""
@@ -1001,6 +1152,21 @@ class EditarMensalidadeDialog(QDialog):
             nova_data_venc = self.data_venc.date().toString("yyyy-MM-dd")
             novo_plano = self.plano.currentText()
             novo_status = self.status.currentText()
+            
+            # Se é plano personalizado, incluir o valor no nome do plano
+            if "personalizado" in novo_plano.lower() and self.valor_personalizado.isVisible():
+                valor_personalizado = self.valor_personalizado.text().strip()
+                if valor_personalizado:
+                    try:
+                        # Validar se é um valor numérico válido
+                        valor_float = float(valor_personalizado.replace(",", "."))
+                        novo_plano = f"Personalizado - R${valor_float:.2f}"
+                    except ValueError:
+                        show_error(self, "Erro", "Valor personalizado inválido. Use apenas números (ex: 250.00)")
+                        return
+                else:
+                    show_error(self, "Erro", "Digite um valor para o plano personalizado.")
+                    return
             
             # Atualizar mensalidade no banco
             from database.db import get_conn
@@ -1034,6 +1200,73 @@ class EditarMensalidadeDialog(QDialog):
             
         except Exception as e:
             show_error(self.parent(), "Erro", f"Erro ao atualizar mensalidade: {str(e)}")
+
+    def vincular_responsavel(self):
+        """Vincula o aluno a um responsável como dependente"""
+        from ui.app_dialog import show_input
+        
+        # Solicitar CPF do responsável
+        cpf_responsavel, ok = show_input(
+            self, 
+            "Vincular Responsável", 
+            "Digite o CPF do responsável:",
+            "000.000.000-00"
+        )
+        
+        if not ok or not cpf_responsavel.strip():
+            return
+            
+        # Limpar CPF (remover caracteres especiais)
+        cpf_responsavel = ''.join(filter(str.isdigit, cpf_responsavel.strip()))
+        
+        if len(cpf_responsavel) != 11:
+            show_error(self, "CPF Inválido", "O CPF deve ter 11 dígitos.")
+            return
+            
+        try:
+            from database.db import get_conn
+            conn = get_conn()
+            cur = conn.cursor()
+            
+            # Verificar se existe um aluno adulto com esse CPF
+            cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf_responsavel,))
+            responsavel = cur.fetchone()
+            
+            if not responsavel:
+                show_error(self, "Responsável não encontrado", 
+                          f"Não foi encontrado nenhum aluno adulto ativo com o CPF: {cpf_responsavel}")
+                conn.close()
+                return
+            
+            responsavel_id, responsavel_nome = responsavel
+            aluno_id = self.dados[1]  # ID do aluno atual
+            
+            # Verificar se já não está vinculado
+            cur.execute("SELECT responsavel_id FROM alunos WHERE id = ?", (aluno_id,))
+            resultado = cur.fetchone()
+            
+            if resultado and resultado[0]:
+                show_warning(self, "Já vinculado", "Este aluno já possui um responsável vinculado.")
+                conn.close()
+                return
+            
+            # Vincular o aluno ao responsável
+            cur.execute("UPDATE alunos SET responsavel_id = ? WHERE id = ?", (responsavel_id, aluno_id))
+            
+            conn.commit()
+            conn.close()
+            
+            show_info(self, "Sucesso", f"Aluno vinculado com sucesso ao responsável: {responsavel_nome}")
+            
+            # Fechar o diálogo de edição
+            self.accept()
+            
+            # Recarregar a interface financeira
+            if hasattr(self.parent(), 'load'):
+                self.parent().load()
+            
+        except Exception as e:
+            show_error(self, "Erro", f"Erro ao vincular responsável: {str(e)}")
 
     def load(self):
         """Carrega os dados das mensalidades"""
@@ -1449,5 +1682,4 @@ class NovaMensalidadeDialog(FinanceiroDialog):
             show_error(self, "Erro", "Valor inválido. Use apenas números (ex: 180.00)")
         except Exception as e:
             show_error(self, "Erro ao criar mensalidade", f"Erro: {str(e)}")
-
 

@@ -1,5 +1,5 @@
 import os
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QFrame, QHBoxLayout
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QFrame, QHBoxLayout, QLineEdit
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
 
@@ -101,6 +101,139 @@ class AppDialog(QDialog):
         self.accept()
 
 
+class InputDialog(QDialog):
+    def __init__(self, title, message, placeholder="", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setFixedSize(450, 300)
+        self.setModal(True)
+        self.input_text = ""
+        self.accepted_input = False
+        self.build_ui(message, placeholder)
+
+    def build_ui(self, message, placeholder):
+        self.setStyleSheet("QDialog { background-color: #1e1e1e; }")
+
+        main = QVBoxLayout(self)
+        main.setAlignment(Qt.AlignCenter)
+
+        # ----- CARD -----
+        card = QFrame()
+        card.setStyleSheet("background:white;border-radius:18px;")
+
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(25, 25, 25, 25)
+        card_layout.setSpacing(16)
+        card_layout.setAlignment(Qt.AlignCenter)
+
+        # ----- LOGO -----
+        logo = QLabel()
+        logo_path = os.path.join(os.path.dirname(__file__), "..", "assets", "logo.png")
+        logo_path = os.path.abspath(logo_path)
+
+        if os.path.exists(logo_path):
+            pix = QPixmap(logo_path).scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo.setPixmap(pix)
+
+        logo.setAlignment(Qt.AlignCenter)
+
+        # ----- TEXTO -----
+        text = QLabel(message)
+        text.setWordWrap(True)
+        text.setAlignment(Qt.AlignCenter)
+        text.setStyleSheet("font-size:14px;color:#111;line-height:1.5;padding:10px;")
+
+        # ----- CAMPO DE INPUT -----
+        self.input_field = QLineEdit()
+        self.input_field.setPlaceholderText(placeholder)
+        self.input_field.setStyleSheet("""
+            QLineEdit {
+                border: 2px solid #ddd;
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 14px;
+                background-color: white;
+                color: #333;
+            }
+            QLineEdit:focus {
+                border-color: #b00020;
+                outline: none;
+            }
+        """)
+        self.input_field.setFixedHeight(45)
+
+        # ----- BOTÕES -----
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+        btn_layout.setAlignment(Qt.AlignCenter)
+
+        # Botão Cancelar
+        btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setFixedHeight(45)
+        btn_cancel.setCursor(Qt.PointingHandCursor)
+        btn_cancel.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                border-radius: 12px;
+                font-size: 15px;
+                font-weight: bold;
+                padding: 8px 16px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #545b62;
+            }
+        """)
+        btn_cancel.clicked.connect(self.reject)
+
+        # Botão OK
+        btn_ok = QPushButton("OK")
+        btn_ok.setFixedHeight(45)
+        btn_ok.setCursor(Qt.PointingHandCursor)
+        btn_ok.setStyleSheet("""
+            QPushButton {
+                background-color: #b00020;
+                color: white;
+                border-radius: 12px;
+                font-size: 15px;
+                font-weight: bold;
+                padding: 8px 16px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #8c001a;
+            }
+        """)
+        btn_ok.clicked.connect(self.accept_input)
+
+        btn_layout.addWidget(btn_cancel)
+        btn_layout.addWidget(btn_ok)
+
+        # ----- MONTAGEM -----
+        card_layout.addWidget(logo)
+        card_layout.addWidget(text)
+        card_layout.addWidget(self.input_field)
+        card_layout.addStretch()
+        card_layout.addLayout(btn_layout)
+
+        main.addWidget(card)
+
+        # Focar no campo de input
+        self.input_field.setFocus()
+        
+        # Enter confirma
+        self.input_field.returnPressed.connect(self.accept_input)
+
+    def accept_input(self):
+        self.input_text = self.input_field.text()
+        self.accepted_input = True
+        self.accept()
+
+    def get_text(self):
+        return self.input_text, self.accepted_input
+
+
 # ================= FUNÇÕES AUXILIARES =================
 
 def show_info(parent, title, message):
@@ -132,3 +265,10 @@ def show_custom(parent, title, message, buttons):
     dialog = AppDialog(title, message, buttons, parent)
     dialog.exec()
     return dialog.clicked
+
+def show_input(parent, title, message, placeholder=""):
+    """Mostra diálogo de entrada de texto personalizado"""
+    dialog = InputDialog(title, message, placeholder, parent)
+    if dialog.exec() == QDialog.DialogCode.Accepted:
+        return dialog.get_text()
+    return "", False

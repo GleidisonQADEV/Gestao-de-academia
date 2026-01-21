@@ -143,6 +143,12 @@ class MainWindow(QWidget):
             b.setChecked(False)
         btn.setChecked(True)
         
+        # Recarregar dados quando necessário
+        if idx == 0:  # Aba Alunos
+            self.alunos_tab.load()
+        elif idx == 2:  # Aba Financeiro
+            self.financeiro_tab.load()
+        
     def confirmar_sair(self):
         """Confirma saída do sistema"""
         from ui.app_dialog import show_question

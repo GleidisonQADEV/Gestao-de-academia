@@ -256,7 +256,41 @@ def inserir_kid(
             data_nasc, faixa, grau, peso, altura, plano, foto_path, certificado_path, biometria_data
         ))
 
+        # Obter ID do kid inserido
+        kid_id = cur.lastrowid
+
+        # Gerar mensalidade automaticamente se o plano não for gratuito
+        if plano and "R$0" not in plano and "Bolsista" not in plano and "Vinculado ao responsável" not in plano:
+            from datetime import date, datetime
+            
+            # Extrair valor do plano
+            try:
+                import re
+                match = re.search(r'R\$(\d+(?:\.\d{2})?)', plano)
+                if match:
+                    valor = float(match.group(1))
+                    
+                    # Data de vencimento: dia 10 do mês atual
+                    hoje = date.today()
+                    data_vencimento = date(hoje.year, hoje.month, 10)
+                    
+                    # Se já passou do dia 10, vencimento é no próximo mês
+                    if hoje.day > 10:
+                        if hoje.month == 12:
+                            data_vencimento = date(hoje.year + 1, 1, 10)
+                        else:
+                            data_vencimento = date(hoje.year, hoje.month + 1, 10)
+                    
+                    # Inserir mensalidade (usando ID negativo para kids)
+                    cur.execute("""
+                        INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
+                        VALUES (?, ?, ?, 'PENDENTE', 'Mensalidade gerada automaticamente no cadastro (Kids)')
+                    """, (-kid_id, valor, data_vencimento))  # ID negativo para distinguir kids
+            except:
+                pass  # Se não conseguir extrair valor, apenas pula
+
         conn.commit()
+        return kid_id
     except Exception as e:
         conn.rollback()
         raise e

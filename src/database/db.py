@@ -68,6 +68,14 @@ def init_db():
     except sqlite3.OperationalError:
         # Coluna não existe, vamos adicioná-la
         cur.execute("ALTER TABLE alunos ADD COLUMN biometria_data TEXT")
+        
+    # Verificar e adicionar coluna responsavel_id se não existir (para vínculos de dependentes)
+    try:
+        cur.execute("SELECT responsavel_id FROM alunos LIMIT 1")
+    except sqlite3.OperationalError:
+        # Coluna não existe, vamos adicioná-la
+        cur.execute("ALTER TABLE alunos ADD COLUMN responsavel_id INTEGER")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_alunos_responsavel_id ON alunos(responsavel_id)")
 
     # ---- tabela mensalidades ----
     cur.execute("""
@@ -151,8 +159,43 @@ def inserir_aluno(
         foto_path, certificado_path, biometria_data
     ))
 
+    # Obter ID do aluno inserido
+    aluno_id = cur.lastrowid
+
+    # Gerar mensalidade automaticamente se o plano não for gratuito
+    if plano and "R$0" not in plano and "Bolsista" not in plano and "Vinculado ao responsável" not in plano:
+        from datetime import date, datetime
+        
+        # Extrair valor do plano
+        try:
+            import re
+            match = re.search(r'R\$(\d+(?:\.\d{2})?)', plano)
+            if match:
+                valor = float(match.group(1))
+                
+                # Data de vencimento: dia 10 do mês atual
+                hoje = date.today()
+                data_vencimento = date(hoje.year, hoje.month, 10)
+                
+                # Se já passou do dia 10, vencimento é no próximo mês
+                if hoje.day > 10:
+                    if hoje.month == 12:
+                        data_vencimento = date(hoje.year + 1, 1, 10)
+                    else:
+                        data_vencimento = date(hoje.year, hoje.month + 1, 10)
+                
+                # Inserir mensalidade
+                cur.execute("""
+                    INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
+                    VALUES (?, ?, ?, 'PENDENTE', 'Mensalidade gerada automaticamente no cadastro')
+                """, (aluno_id, valor, data_vencimento))
+        except:
+            pass  # Se não conseguir extrair valor, apenas pula
+
     conn.commit()
     conn.close()
+    
+    return aluno_id
 
 
 def listar_alunos():
@@ -165,13 +208,45 @@ def listar_alunos():
 
 
 def listar_todos_alunos():
-    """Lista todos os alunos (ativos e inativos)"""
+    """Lista todos os alunos (ativos e inativos) com informações de responsáveis e dependentes"""
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM alunos ORDER BY nome")
-    rows = cur.fetchall()
+    
+    # Query simples primeiro para pegar todos os alunos com responsáveis
+    cur.execute("""
+        SELECT 
+            a.*,
+            r.nome as responsavel_nome,
+            r.cpf as responsavel_cpf
+        FROM alunos a
+        LEFT JOIN alunos r ON a.responsavel_id = r.id
+        ORDER BY a.nome
+    """)
+    
+    alunos = cur.fetchall()
+    
+    # Agora pegar os dependentes para cada aluno
+    resultado_final = []
+    for aluno in alunos:
+        aluno_id = aluno[0]  # ID está na primeira posição
+        
+        # Buscar dependentes deste aluno
+        cur.execute("""
+            SELECT nome FROM alunos 
+            WHERE responsavel_id = ? AND ativo = 1
+        """, (aluno_id,))
+        dependentes = cur.fetchall()
+        
+        # Criar tupla estendida com informações de dependentes
+        dependentes_nomes = ', '.join([dep[0] for dep in dependentes]) if dependentes else None
+        total_dependentes = len(dependentes)
+        
+        # Adicionar as colunas extras
+        aluno_completo = aluno + (dependentes_nomes, total_dependentes)
+        resultado_final.append(aluno_completo)
+    
     conn.close()
-    return rows
+    return resultado_final
 
 
 def excluir_aluno(aluno_id):
@@ -252,24 +327,31 @@ def email_existe(email, excluir_id=None):
 # ---------------- FINANCEIRO ----------------
 
 def listar_mensalidades(status=None):
-    """Lista mensalidades com informações do aluno"""
+    """Lista mensalidades com informações do aluno (adultos e kids)"""
     conn = get_conn()
     cur = conn.cursor()
     
+    # Query que une mensalidades com alunos adultos E kids
     query = """
         SELECT 
             m.id, 
-            a.nome, 
+            COALESCE(a.nome, k.nome) as nome,
             m.valor, 
             m.data_vencimento, 
             m.data_pagamento, 
             m.status,
             m.observacoes,
-            a.foto_path,
-            a.plano
+            COALESCE(a.foto_path, k.foto_path) as foto_path,
+            COALESCE(a.plano, k.plano) as plano,
+            CASE 
+                WHEN a.id IS NOT NULL THEN 'adulto'
+                WHEN k.id IS NOT NULL THEN 'kid'
+                ELSE 'unknown'
+            END as tipo_aluno
         FROM mensalidades m
-        JOIN alunos a ON m.aluno_id = a.id
-        WHERE a.ativo = 1
+        LEFT JOIN alunos a ON m.aluno_id = a.id AND a.ativo = 1
+        LEFT JOIN kids k ON m.aluno_id = -k.id AND k.ativo = 1
+        WHERE (a.id IS NOT NULL OR k.id IS NOT NULL)
     """
     
     if status:
@@ -342,69 +424,83 @@ def obter_mensalidades_pendentes():
     return dados
 
 
-# FUNÇÃO DESABILITADA - Sistema automático implementado na UI
-# def gerar_mensalidades_automaticas():
-#     """Gera mensalidades automáticas para o mês atual"""
-#     from datetime import date, datetime
-#     hoje = date.today()
-#     mes_atual = hoje.month
-#     ano_atual = hoje.year
-#     
-#     conn = get_conn()
-#     cur = conn.cursor()
-#     
-#     # Buscar alunos ativos com planos definidos
-#     cur.execute("""
-#         SELECT id, nome, plano
-#         FROM alunos 
-#         WHERE ativo = 1 AND plano IS NOT NULL AND plano != ''
-#     """)
-#     alunos = cur.fetchall()
-#     
-#     mensalidades_criadas = 0
-#     
-#     for aluno_id, nome, plano in alunos:
-#         # Verificar se já existe mensalidade para este mês
-#         cur.execute("""
-#             SELECT id FROM mensalidades 
-#             WHERE aluno_id = ? 
-#             AND strftime('%m', data_vencimento) = ? 
-#             AND strftime('%Y', data_vencimento) = ?
-#         """, (aluno_id, f"{mes_atual:02d}", str(ano_atual)))
-#         
-#         if cur.fetchone():
-#             continue  # Já existe mensalidade para este mês
-#         
-#         # Determinar valor baseado no plano
-#         valor = 180.0  # Valor padrão
-#         if "musculação" in plano.lower():
-#             valor = 150.0
-#         elif "kids" in plano.lower():
-#             valor = 120.0
-#         elif "premium" in plano.lower():
-#             valor = 300.0
-#         
-#         # Data de vencimento (dia 10 do mês)
-#         try:
-#             data_vencimento = date(ano_atual, mes_atual, 10)
-#         except ValueError:
-#             data_vencimento = date(ano_atual, mes_atual, 28)  # Caso não seja possível
-#         
-#         # Criar mensalidade
-#         cur.execute("""
-#             INSERT INTO mensalidades (aluno_id, valor, data_vencimento, observacoes)
-#             VALUES (?, ?, ?, ?)
-#         """, (aluno_id, valor, data_vencimento.isoformat(), f"Mensalidade automática - {plano}"))
-#         
-#         mensalidades_criadas += 1
-#     
-#     conn.commit()
-#     conn.close()
-#     return mensalidades_criadas
-
 def gerar_mensalidades_automaticas():
-    """FUNÇÃO DESABILITADA - usar sistema automático da UI"""
-    return 0
+    """Gera mensalidades para alunos que não possuem mensalidades no mês atual"""
+    from datetime import date
+    import re
+    
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    hoje = date.today()
+    data_vencimento = date(hoje.year, hoje.month, 10)
+    if hoje.day > 10:
+        if hoje.month == 12:
+            data_vencimento = date(hoje.year + 1, 1, 10)
+        else:
+            data_vencimento = date(hoje.year, hoje.month + 1, 10)
+    
+    mensalidades_criadas = 0
+    
+    # Processar alunos adultos
+    cur.execute("SELECT id, nome, plano FROM alunos WHERE ativo = 1")
+    alunos = cur.fetchall()
+    
+    for aluno_id, nome, plano in alunos:
+        # Verificar se já tem mensalidade no mês atual
+        cur.execute("""
+            SELECT COUNT(*) FROM mensalidades 
+            WHERE aluno_id = ? AND strftime('%Y-%m', data_vencimento) = ?
+        """, (aluno_id, data_vencimento.strftime('%Y-%m')))
+        
+        if cur.fetchone()[0] == 0:  # Não tem mensalidade no mês
+            # Extrair valor do plano
+            if plano and "R$0" not in plano and "Bolsista" not in plano:
+                try:
+                    match = re.search(r'R\$(\d+(?:\.\d{2})?)', plano)
+                    if match:
+                        valor = float(match.group(1))
+                        cur.execute("""
+                            INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
+                            VALUES (?, ?, ?, 'PENDENTE', 'Mensalidade gerada automaticamente')
+                        """, (aluno_id, valor, data_vencimento))
+                        mensalidades_criadas += 1
+                        print(f"Mensalidade criada para {nome}: R${valor}")
+                except:
+                    pass
+    
+    # Processar kids
+    cur.execute("SELECT id, nome, plano FROM kids WHERE ativo = 1")
+    kids = cur.fetchall()
+    
+    for kid_id, nome, plano in kids:
+        # Verificar se já tem mensalidade no mês atual
+        cur.execute("""
+            SELECT COUNT(*) FROM mensalidades 
+            WHERE aluno_id = ? AND strftime('%Y-%m', data_vencimento) = ?
+        """, (-kid_id, data_vencimento.strftime('%Y-%m')))
+        
+        if cur.fetchone()[0] == 0:  # Não tem mensalidade no mês
+            # Extrair valor do plano
+            if plano and "R$0" not in plano and "Bolsista" not in plano and "Vinculado ao responsável" not in plano:
+                try:
+                    match = re.search(r'R\$(\d+(?:\.\d{2})?)', plano)
+                    if match:
+                        valor = float(match.group(1))
+                        cur.execute("""
+                            INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
+                            VALUES (?, ?, ?, 'PENDENTE', 'Mensalidade gerada automaticamente (Kids)')
+                        """, (-kid_id, valor, data_vencimento))
+                        mensalidades_criadas += 1
+                        print(f"Mensalidade criada para {nome} (Kids): R${valor}")
+                except:
+                    pass
+    
+    conn.commit()
+    conn.close()
+    
+    print(f"Total de mensalidades criadas: {mensalidades_criadas}")
+    return mensalidades_criadas
 
 
 # ================= GERENCIAMENTO DE PLANOS =================

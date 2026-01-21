@@ -19,6 +19,7 @@ class CadastroAlunoTab(BaseTab):
         self.refresh_callback = refresh_callback
         self.foto_path = None
         self.certificado_path = None
+        self.biometria_data = None
 
         # listas de faixas
         self.faixas_adulto = ["Branca", "Azul", "Roxa", "Marrom", "Preta"]
@@ -294,15 +295,37 @@ class CadastroAlunoTab(BaseTab):
         al.addStretch()
         form.addLayout(row("Arquivos:", aw))
 
-        # -------- BOTÃO --------
+        # -------- BOTÕES --------
         btn = QPushButton("Salvar Aluno")
         btn.setFixedSize(200, 44)
         btn.setStyleSheet(red_btn())
         btn.clicked.connect(self.salvar)
+        
+        self.btn_vincular = QPushButton("Vincular a Responsável")
+        self.btn_vincular.setFixedSize(200, 44)
+        self.btn_vincular.setStyleSheet("""
+            QPushButton {
+                background-color: #2E86AB;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #1e5f7a;
+            }
+        """)
+        self.btn_vincular.clicked.connect(self.vincular_responsavel)
+        
+        # Estado inicial: botão visível para alunos não-kids
+        self.btn_vincular.setVisible(True)
 
         br = QHBoxLayout()
         br.addStretch()
+        br.addWidget(self.btn_vincular)
         br.addWidget(btn)
+        br.setSpacing(10)
         form.addLayout(br)
 
     # -------------------------------------------------
@@ -351,6 +374,7 @@ class CadastroAlunoTab(BaseTab):
         self.valor_personalizado.clear()
         self.data_input.setDate(QDate.currentDate())
         self.chk_kids.setChecked(False)
+        self.btn_vincular.setVisible(True)  # Visível por padrão (não-kids)
         self.foto_path = None
         self.certificado_path = None
         self.biometria_data = None
@@ -363,6 +387,9 @@ class CadastroAlunoTab(BaseTab):
     def toggle_responsavel(self):
         is_kid = self.chk_kids.isChecked()
         self.resp_wrap.setVisible(is_kid)
+        
+        # Kids não podem usar o botão vincular pois já são obrigatoriamente vinculados
+        self.btn_vincular.setVisible(not is_kid)
 
         self.plano.blockSignals(True)
         self.plano.clear()
@@ -430,7 +457,7 @@ class CadastroAlunoTab(BaseTab):
             self
         )
         dlg.exec()
-        return dlg.clicked
+        return dlg.clicked == "Confirmar" == "Confirmar"
 
 
 
@@ -532,7 +559,7 @@ class CadastroAlunoTab(BaseTab):
             else:
                 plano_final = plano  # usa Kids / Personalizado / Bolsista
 
-            if self.confirmar_salvamento() != "Confirmar":
+            if not self.confirmar_salvamento():
                 return
 
             # Converter biometria para JSON se existir
@@ -563,7 +590,7 @@ class CadastroAlunoTab(BaseTab):
                 AppDialog("Erro", "E-mail já cadastrado.", ("OK",), self).exec()
                 return
             
-            if self.confirmar_salvamento() != "Confirmar":
+            if not self.confirmar_salvamento():
                 return
 
             # Converter biometria para JSON se existir
@@ -582,3 +609,102 @@ class CadastroAlunoTab(BaseTab):
 
         if self.refresh_callback:
             self.refresh_callback()
+
+    def vincular_responsavel(self):
+        """Vincula um aluno existente a um responsável"""
+        from ui.app_dialog import show_input, show_error, show_warning, show_info
+        
+        # Verificar se há um aluno selecionado na lista de alunos
+        # Para isso, vamos criar um diálogo para buscar o aluno por CPF
+        
+        # Solicitar CPF do aluno que será dependente
+        cpf_dependente, ok = show_input(
+            self, 
+            "Vincular Dependente", 
+            "Digite o CPF do aluno que será dependente:",
+            "000.000.000-00"
+        )
+        
+        if not ok or not cpf_dependente.strip():
+            return
+            
+        # Limpar CPF (remover caracteres especiais)
+        cpf_dependente = ''.join(filter(str.isdigit, cpf_dependente.strip()))
+        
+        if len(cpf_dependente) != 11:
+            show_error(self, "CPF Inválido", "O CPF deve ter 11 dígitos.")
+            return
+        
+        # Solicitar CPF do responsável
+        cpf_responsavel, ok = show_input(
+            self, 
+            "Vincular Responsável", 
+            "Digite o CPF do responsável:",
+            "000.000.000-00"
+        )
+        
+        if not ok or not cpf_responsavel.strip():
+            return
+            
+        # Limpar CPF (remover caracteres especiais)
+        cpf_responsavel = ''.join(filter(str.isdigit, cpf_responsavel.strip()))
+        
+        if len(cpf_responsavel) != 11:
+            show_error(self, "CPF Inválido", "O CPF do responsável deve ter 11 dígitos.")
+            return
+            
+        if cpf_dependente == cpf_responsavel:
+            show_error(self, "CPF Inválido", "O dependente não pode ser responsável de si mesmo.")
+            return
+            
+        try:
+            from database.db import get_conn
+            conn = get_conn()
+            cur = conn.cursor()
+            
+            # Verificar se existe o aluno dependente
+            cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf_dependente,))
+            dependente = cur.fetchone()
+            
+            if not dependente:
+                show_error(self, "Aluno não encontrado", 
+                          f"Não foi encontrado nenhum aluno ativo com o CPF: {cpf_dependente}")
+                conn.close()
+                return
+            
+            # Verificar se existe um aluno adulto responsável com esse CPF
+            cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf_responsavel,))
+            responsavel = cur.fetchone()
+            
+            if not responsavel:
+                show_error(self, "Responsável não encontrado", 
+                          f"Não foi encontrado nenhum aluno adulto ativo com o CPF: {cpf_responsavel}")
+                conn.close()
+                return
+            
+            responsavel_id, responsavel_nome = responsavel
+            dependente_id, dependente_nome = dependente
+            
+            # Verificar se já não está vinculado
+            cur.execute("SELECT responsavel_id FROM alunos WHERE id = ?", (dependente_id,))
+            resultado = cur.fetchone()
+            
+            if resultado and resultado[0]:
+                show_warning(self, "Já vinculado", f"O aluno {dependente_nome} já possui um responsável vinculado.")
+                conn.close()
+                return
+            
+            # Vincular o aluno ao responsável
+            cur.execute("UPDATE alunos SET responsavel_id = ? WHERE id = ?", (responsavel_id, dependente_id))
+            
+            conn.commit()
+            conn.close()
+            
+            show_info(self, "Sucesso", f"Aluno {dependente_nome} vinculado com sucesso ao responsável: {responsavel_nome}")
+            
+            # Recarregar a lista de alunos se houver callback
+            if self.refresh_callback:
+                self.refresh_callback()
+            
+        except Exception as e:
+            show_error(self, "Erro", f"Erro ao vincular responsável: {str(e)}")

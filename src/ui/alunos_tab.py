@@ -149,10 +149,15 @@ class AlunoCard(QFrame):
         self.lbl_resp.setStyleSheet(campo_style)
         self.lbl_resp.setWordWrap(True)
         
+        self.lbl_dependentes = QLabel("")
+        self.lbl_dependentes.setStyleSheet(campo_style)
+        self.lbl_dependentes.setWordWrap(True)
+        
         col2.addWidget(self.lbl_endereco)
         col2.addWidget(self.lbl_nascimento)
         col2.addWidget(self.lbl_plano)
         col2.addWidget(self.lbl_resp)
+        col2.addWidget(self.lbl_dependentes)
         
         dados_grid.addLayout(col1, 1)
         dados_grid.addLayout(col2, 1)
@@ -215,8 +220,14 @@ class AlunoCard(QFrame):
         
         self.lbl_plano.setText(f"💳 {dados['plano']}")
 
-        # Responsável
-        if dados.get("responsavel"):
+        # Responsável (para alunos que são dependentes)
+        if dados.get("responsavel_nome"):
+            resp_info = f"👨‍👩‍👧‍👦 Resp: {dados['responsavel_nome']}"
+            if dados.get("responsavel_cpf"):
+                resp_info += f" ({dados['responsavel_cpf']})"
+            self.lbl_resp.setText(resp_info)
+            self.lbl_resp.show()
+        elif dados.get("responsavel"):  # Para compatibilidade com kids
             resp_info = f"👨‍👩‍👧‍👦 {dados['responsavel']}"
             if dados.get("responsavel_cpf"):
                 resp_info += f" - {dados['responsavel_cpf']}"
@@ -224,6 +235,14 @@ class AlunoCard(QFrame):
             self.lbl_resp.show()
         else:
             self.lbl_resp.hide()
+            
+        # Dependentes (para alunos que são responsáveis)
+        if dados.get("dependentes_nomes") and dados.get("total_dependentes", 0) > 0:
+            dep_info = f"👥 Dependentes ({dados['total_dependentes']}): {dados['dependentes_nomes']}"
+            self.lbl_dependentes.setText(dep_info)
+            self.lbl_dependentes.show()
+        else:
+            self.lbl_dependentes.hide()
 
         # Status
         if dados["status"]:
@@ -371,13 +390,46 @@ class AlunosTab(BaseTab):
         # Espaço antes do card
         root.addSpacing(15)
 
-        # Área para cards (centralizada robustamente)
+        # Área de scroll para cards (centralizada robustamente)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: rgba(0,0,0,0.2);
+                width: 12px;
+                border-radius: 6px;
+                margin: 3px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: rgba(229,9,20,0.7);
+                border-radius: 6px;
+                min-height: 20px;
+                margin: 2px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: rgba(229,9,20,0.9);
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+        
+        # Widget de conteúdo dentro do scroll
         self.cards_area = QWidget()
+        self.cards_area.setStyleSheet("background: transparent;")
         self.cards_layout = QVBoxLayout(self.cards_area)  # VBox para melhor controle
         self.cards_layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)  # Topo e centro horizontal
-        self.cards_layout.setContentsMargins(0, 0, 0, 0)
+        self.cards_layout.setContentsMargins(30, 0, 30, 20)  # Margens laterais maiores para evitar cortes
+        self.cards_layout.setSpacing(15)  # Espaçamento entre cards
         
-        root.addWidget(self.cards_area, 0)  # Não expandir verticalmente
+        self.scroll_area.setWidget(self.cards_area)
+        root.addWidget(self.scroll_area, 1)  # Expandir verticalmente para ocupar espaço disponível
 
         # -------- BOTÕES --------
         self.btns = QHBoxLayout()
@@ -432,7 +484,11 @@ class AlunosTab(BaseTab):
     def carregar_dados(self):
         self.registros.clear()
 
-        for a in listar_todos_alunos():  # Agora lista TODOS (ativos e inativos)
+        for a in listar_todos_alunos():  # Agora lista TODOS (ativos e inativos) com responsáveis
+            # Estrutura da tabela alunos: 0-id, 1-nome, 2-cpf, 3-email, 4-telefone, 5-cep, 6-endereco, 
+            # 7-data_nascimento, 8-faixa, 9-grau, 10-peso, 11-altura, 12-plano, 13-foto_path, 
+            # 14-certificado_path, 15-ativo, 16-criado_em, 17-biometria_data, 18-responsavel_id
+            # Colunas adicionadas pela query: 19-responsavel_nome, 20-responsavel_cpf, 21-dependentes_nomes, 22-total_dependentes
             self.registros.append({
                 "tipo": "adulto",
                 "id": a[0],           # id
@@ -449,7 +505,15 @@ class AlunosTab(BaseTab):
                 "altura": a[11] or "", # altura
                 "plano": a[12],       # plano
                 "foto": a[13],        # foto_path
-                "status": a[15],      # ativo
+                "certificado": a[14], # certificado_path
+                "status": a[15],      # ativo ← CORRIGIDO DE NOVO! Índice 15, não 16!
+                "criado_em": a[16] if len(a) > 16 else None,  # criado_em
+                "biometria": a[17] if len(a) > 17 else None,   # biometria_data
+                "responsavel_id": a[18] if len(a) > 18 else None,  # responsavel_id
+                "responsavel_nome": a[19] if len(a) > 19 and a[19] else None,  # responsavel_nome
+                "responsavel_cpf": a[20] if len(a) > 20 and a[20] else None,  # responsavel_cpf
+                "dependentes_nomes": a[21] if len(a) > 21 and a[21] else None,  # dependentes_nomes
+                "total_dependentes": a[22] if len(a) > 22 else 0,  # total_dependentes
             })
 
         conn = get_conn()
@@ -785,19 +849,21 @@ class AlunosTab(BaseTab):
         
         # Layout horizontal para centralizar o grid
         layout_horizontal = QHBoxLayout(container_principal)
+        layout_horizontal.setContentsMargins(30, 0, 30, 0)  # Margens laterais maiores
         layout_horizontal.addStretch(1)  # Stretch à esquerda
         
-        # Container do grid com largura fixa
+        # Container do grid com largura calculada corretamente
         container_grid = QWidget()
-        container_grid.setFixedWidth(960)  # Aumentado para acomodar cards de 450px
+        # Largura: 2 cards de 480px + espaçamento de 15px + margens = 1000px
+        container_grid.setFixedWidth(1000)
         container_grid.setStyleSheet("background: transparent;")
         
         # Layout em grid
         from PySide6.QtWidgets import QGridLayout
         grid = QGridLayout(container_grid)
-        grid.setSpacing(25)  # Espaço entre cards
+        grid.setSpacing(15)  # Espaço reduzido para não cortar
         grid.setAlignment(Qt.AlignCenter)
-        grid.setContentsMargins(10, 10, 10, 10)
+        grid.setContentsMargins(15, 10, 15, 10)  # Margens uniformes
         
         # Adicionar cards em grid 2 colunas
         row = 0
@@ -917,19 +983,21 @@ class AlunosTab(BaseTab):
         
         # Layout horizontal para centralizar o grid
         layout_horizontal = QHBoxLayout(container_principal)
+        layout_horizontal.setContentsMargins(30, 0, 30, 0)  # Margens laterais maiores
         layout_horizontal.addStretch(1)  # Stretch à esquerda
         
-        # Container do grid com largura fixa
+        # Container do grid com largura calculada corretamente
         container_grid = QWidget()
-        container_grid.setFixedWidth(960)  # Aumentado para acomodar cards de 450px
+        # Largura: 2 cards de 480px + espaçamento de 15px + margens = 1000px
+        container_grid.setFixedWidth(1000)  
         container_grid.setStyleSheet("background: transparent;")
         
         # Layout em grid
         from PySide6.QtWidgets import QGridLayout
         grid = QGridLayout(container_grid)
-        grid.setSpacing(20)  # Espaçamento entre cards
+        grid.setSpacing(15)  # Espaçamento reduzido para não cortar
         grid.setAlignment(Qt.AlignCenter)
-        grid.setContentsMargins(10, 10, 10, 10)
+        grid.setContentsMargins(15, 10, 15, 10)  # Margens uniformes
         
         # Adicionar cards em grid 2 colunas
         row = 0
@@ -1058,6 +1126,8 @@ class AlunosTab(BaseTab):
         if termo_atual:
             self.buscar()
         else:
+            # Mesmo sem termo de busca, precisamos recarregar os dados
+            self.carregar_dados()
             self.esconder_cards()
     
     def executar_inativacao(self, dados_aluno):
@@ -1075,6 +1145,10 @@ class AlunosTab(BaseTab):
                 cur.execute("UPDATE kids SET ativo=? WHERE id=?", (novo_status, dados_aluno["id"]))
                 conn.commit()
                 conn.close()
+            
+            # Atualizar o objeto atual se for o mesmo
+            if self.aluno_atual and self.aluno_atual["id"] == dados_aluno["id"]:
+                self.aluno_atual["status"] = novo_status
                 
         except Exception as e:
             show_error(
@@ -1340,6 +1414,8 @@ class EdicaoAlunoDialog(QDialog):
         self.setFixedSize(950, 900)  # Tamanho aumentado para evitar cortes
         
         # Background igual ao das outras telas com logo
+        logobackground_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'logobackground.png')
+        logobackground_path = os.path.abspath(logobackground_path)
         self.setStyleSheet(f"""
             QDialog {{
                 background: qlineargradient(
@@ -1347,7 +1423,7 @@ class EdicaoAlunoDialog(QDialog):
                     stop:0 #1a1a2e,
                     stop:1 #16213e
                 );
-                background-image: url({os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'logobackground.png')});
+                background-image: url({logobackground_path});
                 background-repeat: no-repeat;
                 background-position: center center;
                 background-attachment: fixed;
