@@ -190,34 +190,9 @@ def inserir_aluno(
     aluno_id = cur.lastrowid
 
     # Gerar mensalidade automaticamente se o plano não for gratuito
-    if plano and "R$0" not in plano and "Bolsista" not in plano and "Vinculado ao responsável" not in plano:
-        from datetime import date, datetime
-        
-        # Extrair valor do plano
-        try:
-            import re
-            match = re.search(r'R\$(\d+(?:\.\d{2})?)', plano)
-            if match:
-                valor = float(match.group(1))
-                
-                # Data de vencimento: dia 10 do mês atual
-                hoje = date.today()
-                data_vencimento = date(hoje.year, hoje.month, 10)
-                
-                # Se já passou do dia 10, vencimento é no próximo mês
-                if hoje.day > 10:
-                    if hoje.month == 12:
-                        data_vencimento = date(hoje.year + 1, 1, 10)
-                    else:
-                        data_vencimento = date(hoje.year, hoje.month + 1, 10)
-                
-                # Inserir mensalidade
-                cur.execute("""
-                    INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
-                    VALUES (?, ?, ?, 'PENDENTE', 'Mensalidade gerada automaticamente no cadastro')
-                """, (aluno_id, valor, data_vencimento))
-        except:
-            pass  # Se não conseguir extrair valor, apenas pula
+    # NOTA: Desabilitado para evitar duplicação com criações manuais
+    # A geração deve ser feita via gerar_mensalidades_automaticas()
+    pass
 
     conn.commit()
     conn.close()
@@ -354,11 +329,11 @@ def email_existe(email, excluir_id=None):
 # ---------------- FINANCEIRO ----------------
 
 def listar_mensalidades(status=None):
-    """Lista mensalidades com informações do aluno (adultos e kids)"""
+    """Lista mensalidades com informações do aluno (adultos e kids) - EXCLUINDO DEPENDENTES"""
     conn = get_conn()
     cur = conn.cursor()
     
-    # Query que une mensalidades com alunos adultos E kids
+    # Query que une mensalidades com alunos adultos E kids - EXCLUINDO dependentes
     query = """
         SELECT 
             m.id, 
@@ -376,9 +351,12 @@ def listar_mensalidades(status=None):
                 ELSE 'unknown'
             END as tipo_aluno
         FROM mensalidades m
-        LEFT JOIN alunos a ON m.aluno_id = a.id AND a.ativo = 1 AND a.responsavel_id IS NULL
+        LEFT JOIN alunos a ON m.aluno_id = a.id AND a.ativo = 1
         LEFT JOIN kids k ON m.aluno_id = -k.id AND k.ativo = 1
-        WHERE (a.id IS NOT NULL OR k.id IS NOT NULL)
+        WHERE (
+            (a.id IS NOT NULL AND a.responsavel_id IS NULL) OR 
+            (k.id IS NOT NULL)
+        )
     """
     
     if status:
@@ -474,10 +452,13 @@ def gerar_mensalidades_automaticas():
     alunos = cur.fetchall()
     
     for aluno_id, nome, plano in alunos:
-        # Verificar se já tem mensalidade no mês atual
+        # Verificar se já tem mensalidade no mês atual OU qualquer mensalidade recente
         cur.execute("""
             SELECT COUNT(*) FROM mensalidades 
-            WHERE aluno_id = ? AND strftime('%Y-%m', data_vencimento) = ?
+            WHERE aluno_id = ? AND (
+                strftime('%Y-%m', data_vencimento) = ? OR
+                date(data_vencimento) >= date('now', '-30 days')
+            )
         """, (aluno_id, data_vencimento.strftime('%Y-%m')))
         
         if cur.fetchone()[0] == 0:  # Não tem mensalidade no mês
@@ -501,10 +482,13 @@ def gerar_mensalidades_automaticas():
     kids = cur.fetchall()
     
     for kid_id, nome, plano in kids:
-        # Verificar se já tem mensalidade no mês atual
+        # Verificar se já tem mensalidade no mês atual OU qualquer mensalidade recente
         cur.execute("""
             SELECT COUNT(*) FROM mensalidades 
-            WHERE aluno_id = ? AND strftime('%Y-%m', data_vencimento) = ?
+            WHERE aluno_id = ? AND (
+                strftime('%Y-%m', data_vencimento) = ? OR
+                date(data_vencimento) >= date('now', '-30 days')
+            )
         """, (-kid_id, data_vencimento.strftime('%Y-%m')))
         
         if cur.fetchone()[0] == 0:  # Não tem mensalidade no mês
@@ -528,6 +512,182 @@ def gerar_mensalidades_automaticas():
     
     print(f"Total de mensalidades criadas: {mensalidades_criadas}")
     return mensalidades_criadas
+
+
+def gerar_mensalidades_anuais(ano=None):
+    """Gera mensalidades para todo o ano (12 meses) de uma vez"""
+    from datetime import date
+    import re
+    
+    if ano is None:
+        ano = date.today().year
+    
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    mensalidades_criadas = 0
+    
+    # Processar alunos adultos (excluir dependentes)
+    cur.execute("SELECT id, nome, plano FROM alunos WHERE ativo = 1 AND responsavel_id IS NULL")
+    alunos = cur.fetchall()
+    
+    for aluno_id, nome, plano in alunos:
+        # Gerar mensalidades para todos os 12 meses do ano
+        for mes in range(1, 13):
+            # Verificar se já tem mensalidade no mês
+            cur.execute("""
+                SELECT COUNT(*) FROM mensalidades 
+                WHERE aluno_id = ? AND strftime('%Y-%m', data_vencimento) = ?
+            """, (aluno_id, f"{ano}-{mes:02d}"))
+            
+            if cur.fetchone()[0] == 0:  # Não tem mensalidade no mês
+                # Extrair valor do plano
+                if plano and "R$0" not in plano and "Bolsista" not in plano and "Vinculado ao responsável" not in plano:
+                    try:
+                        match = re.search(r'R\$(\d+(?:\.\d{2})?)', plano)
+                        if match:
+                            valor = float(match.group(1))
+                            data_vencimento = date(ano, mes, 10)
+                            
+                            cur.execute("""
+                                INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
+                                VALUES (?, ?, ?, 'PENDENTE', ?)
+                            """, (aluno_id, valor, data_vencimento, f'Mensalidade {mes:02d}/{ano} - {plano}'))
+                            mensalidades_criadas += 1
+                    except:
+                        pass
+    
+    # Processar kids
+    cur.execute("SELECT id, nome, plano FROM kids WHERE ativo = 1")
+    kids = cur.fetchall()
+    
+    for kid_id, nome, plano in kids:
+        # Gerar mensalidades para todos os 12 meses do ano
+        for mes in range(1, 13):
+            # Verificar se já tem mensalidade no mês
+            cur.execute("""
+                SELECT COUNT(*) FROM mensalidades 
+                WHERE aluno_id = ? AND strftime('%Y-%m', data_vencimento) = ?
+            """, (-kid_id, f"{ano}-{mes:02d}"))
+            
+            if cur.fetchone()[0] == 0:  # Não tem mensalidade no mês
+                # Extrair valor do plano
+                if plano and "R$0" not in plano and "Bolsista" not in plano and "Vinculado ao responsável" not in plano:
+                    try:
+                        match = re.search(r'R\$(\d+(?:\.\d{2})?)', plano)
+                        if match:
+                            valor = float(match.group(1))
+                            data_vencimento = date(ano, mes, 10)
+                            
+                            cur.execute("""
+                                INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
+                                VALUES (?, ?, ?, 'PENDENTE', ?)
+                            """, (-kid_id, valor, data_vencimento, f'Mensalidade {mes:02d}/{ano} - {plano} (Kids)'))
+                            mensalidades_criadas += 1
+                    except:
+                        pass
+    
+    conn.commit()
+    conn.close()
+    
+    print(f"Total de mensalidades anuais criadas para {ano}: {mensalidades_criadas}")
+    return mensalidades_criadas
+
+
+def obter_metricas_dashboard():
+    """Obtém métricas para dashboard financeiro"""
+    from datetime import date, timedelta
+    
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    hoje = date.today()
+    inicio_mes = date(hoje.year, hoje.month, 1)
+    if hoje.month == 12:
+        fim_mes = date(hoje.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        fim_mes = date(hoje.year, hoje.month + 1, 1) - timedelta(days=1)
+    
+    metricas = {}
+    
+    # Query base que exclui dependentes - ALINHADA COM listar_mensalidades
+    base_query = """
+        FROM mensalidades m
+        LEFT JOIN alunos a ON m.aluno_id = a.id AND a.ativo = 1
+        LEFT JOIN kids k ON m.aluno_id = -k.id AND k.ativo = 1
+        WHERE (
+            (a.id IS NOT NULL AND a.responsavel_id IS NULL) OR 
+            (k.id IS NOT NULL)
+        )
+    """
+    
+    # 1. Mensalidades atrasadas
+    cur.execute(f"""
+        SELECT COUNT(*), COALESCE(SUM(m.valor), 0) 
+        {base_query} 
+        AND m.status = 'PENDENTE' AND m.data_vencimento < ?
+    """, (hoje,))
+    atrasadas_count, atrasadas_valor = cur.fetchone()
+    metricas['atrasadas'] = {'count': atrasadas_count, 'valor': atrasadas_valor}
+    
+    # 2. Mensalidades pagas no mês
+    cur.execute(f"""
+        SELECT COUNT(*), COALESCE(SUM(m.valor), 0)
+        {base_query}
+        AND m.status = 'PAGO' AND m.data_pagamento BETWEEN ? AND ?
+    """, (inicio_mes, fim_mes))
+    pagas_count, pagas_valor = cur.fetchone()
+    metricas['pagas_mes'] = {'count': pagas_count, 'valor': pagas_valor}
+    
+    # 3. Mensalidades a vencer (próximos 30 dias)
+    proximos_30 = hoje + timedelta(days=30)
+    cur.execute(f"""
+        SELECT COUNT(*), COALESCE(SUM(m.valor), 0)
+        {base_query}
+        AND m.status = 'PENDENTE' AND m.data_vencimento BETWEEN ? AND ?
+    """, (hoje, proximos_30))
+    a_vencer_count, a_vencer_valor = cur.fetchone()
+    metricas['a_vencer'] = {'count': a_vencer_count, 'valor': a_vencer_valor}
+    
+    # 4. Receita projetada anual
+    cur.execute(f"""
+        SELECT COALESCE(SUM(m.valor), 0)
+        {base_query}
+        AND strftime('%Y', m.data_vencimento) = ?
+    """, (str(hoje.year),))
+    receita_anual = cur.fetchone()[0]
+    metricas['receita_anual'] = receita_anual
+    
+    # 5. Total de alunos
+    cur.execute("SELECT COUNT(*) FROM alunos WHERE ativo = 1 AND responsavel_id IS NULL")
+    alunos_responsaveis = cur.fetchone()[0]
+    
+    cur.execute("SELECT COUNT(*) FROM alunos WHERE ativo = 1 AND responsavel_id IS NOT NULL")
+    alunos_dependentes = cur.fetchone()[0]
+    
+    cur.execute("SELECT COUNT(*) FROM kids WHERE ativo = 1")
+    kids_count = cur.fetchone()[0]
+    
+    # Contar bolsistas (alunos com plano contendo "Bolsista")
+    cur.execute("SELECT COUNT(*) FROM alunos WHERE ativo = 1 AND plano LIKE '%Bolsista%'")
+    alunos_bolsistas = cur.fetchone()[0]
+    
+    # Contar kids bolsistas
+    cur.execute("SELECT COUNT(*) FROM kids WHERE ativo = 1 AND plano LIKE '%Bolsista%'")
+    kids_bolsistas = cur.fetchone()[0]
+    
+    total_bolsistas = alunos_bolsistas + kids_bolsistas
+    
+    metricas['alunos'] = {
+        'responsaveis': alunos_responsaveis,
+        'dependentes': alunos_dependentes,
+        'kids': kids_count,
+        'bolsistas': total_bolsistas,
+        'total': alunos_responsaveis + alunos_dependentes + kids_count
+    }
+    
+    conn.close()
+    return metricas
 
 
 # ================= GERENCIAMENTO DE PLANOS =================

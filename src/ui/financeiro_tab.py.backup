@@ -910,6 +910,665 @@ class FinanceiroTab(BaseTab):
         except Exception as e:
             print(f"Erro ao carregar mensalidades do mês: {e}")
     
+    def clear_layout(self, layout):
+        """Limpa todos os widgets de um layout"""
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+
+class EditarMensalidadeDialog(QDialog):
+    """Dialog para edição de mensalidade seguindo o padrão do projeto"""
+    def __init__(self, parent, dados_mensalidade):
+        super().__init__(parent)
+        self.dados = dados_mensalidade
+        self.setWindowTitle("Editar Mensalidade")
+        self.setFixedSize(500, 750)  # Aumentando altura de 600 para 750
+        self.setModal(True)
+        self.build_ui()
+    
+    def build_ui(self):
+        self.setStyleSheet("QDialog { background-color: #1e1e1e; }")
+        
+        main = QVBoxLayout(self)
+        main.setAlignment(Qt.AlignCenter)
+        
+        # Card principal
+        card = QFrame()
+        card.setStyleSheet("background:white;border-radius:18px;")
+        
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(30, 30, 30, 30)
+        card_layout.setSpacing(20)
+        
+        # Logo
+        logo = QLabel()
+        logo_path = os.path.join(os.path.dirname(__file__), "..", "assets", "logo.png")
+        logo_path = os.path.abspath(logo_path)
+        
+        if os.path.exists(logo_path):
+            from PySide6.QtGui import QPixmap
+            pix = QPixmap(logo_path).scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo.setPixmap(pix)
+        
+        logo.setAlignment(Qt.AlignCenter)
+        card_layout.addWidget(logo)
+        
+        # Título
+        title = QLabel("Editar Mensalidade")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #333; margin-bottom: 10px;")
+        card_layout.addWidget(title)
+        
+        # Informações do aluno
+        aluno_info = QLabel(f"Aluno: {self.dados[7]}")
+        aluno_info.setAlignment(Qt.AlignCenter)
+        aluno_info.setStyleSheet("font-size: 14px; color: #666; margin-bottom: 15px;")
+        card_layout.addWidget(aluno_info)
+        
+        # Estilo para inputs
+        input_style = """
+            QLineEdit, QDateEdit, QComboBox {
+                background-color: rgba(255,255,255,0.95);
+                padding: 10px;
+                border-radius: 8px;
+                border: 2px solid #ddd;
+                font-size: 14px;
+                color: #333;
+            }
+            QLineEdit:focus, QDateEdit:focus, QComboBox:focus {
+                border: 2px solid #e50914;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                border: 2px solid #e50914;
+                border-radius: 8px;
+                selection-background-color: #e50914;
+                selection-color: white;
+            }
+        """
+        
+        # Campo Data de Vencimento
+        venc_label = QLabel("Data de Vencimento:")
+        venc_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333; margin-top: 10px;")
+        card_layout.addWidget(venc_label)
+        
+        from PySide6.QtWidgets import QDateEdit
+        from PySide6.QtCore import QDate
+        self.data_venc = QDateEdit()
+        self.data_venc.setStyleSheet(input_style)
+        self.data_venc.setCalendarPopup(True)
+        
+        # Definir data atual ou existente
+        if self.dados[3]:  # data_vencimento
+            try:
+                from datetime import datetime
+                dt = datetime.strptime(self.dados[3], "%Y-%m-%d")
+                self.data_venc.setDate(QDate(dt.year, dt.month, dt.day))
+            except:
+                self.data_venc.setDate(QDate.currentDate())
+        else:
+            self.data_venc.setDate(QDate.currentDate())
+        
+        card_layout.addWidget(self.data_venc)
+        
+        # Campo Plano
+        plano_label = QLabel("Plano:")
+        plano_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333; margin-top: 10px;")
+        card_layout.addWidget(plano_label)
+        
+        self.plano = QComboBox()
+        self.plano.addItems([
+            "Adulto - R$180",
+            "Kids (5–13) - R$150",
+            "Família: 2 adultos - R$320",
+            "Família: 1 adulto + 1 kids - R$300",
+            "Família: 2 adultos + 1 kids - R$450",
+            "Família: 1 adulto + 2 kids - R$430",
+            "Família: 1 adulto + 3 kids - R$500",
+            "Plano Personalizado",
+            "Plano Bolsista (Patrocinado)"
+        ])
+        self.plano.setStyleSheet(input_style)
+        self.plano.currentTextChanged.connect(self.on_plano_changed)
+        
+        # Definir plano atual
+        plano_atual = self.dados[8] if len(self.dados) > 8 and self.dados[8] else "Adulto - R$180"
+        index = self.plano.findText(plano_atual)
+        if index >= 0:
+            self.plano.setCurrentIndex(index)
+        
+        card_layout.addWidget(self.plano)
+        
+        # Campo Valor Personalizado (inicialmente oculto)
+        self.valor_personalizado_label = QLabel("Valor Personalizado:")
+        self.valor_personalizado_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333; margin-top: 10px;")
+        self.valor_personalizado_label.setVisible(False)
+        card_layout.addWidget(self.valor_personalizado_label)
+        
+        self.valor_personalizado = QLineEdit()
+        self.valor_personalizado.setPlaceholderText("Digite o valor (ex: 250.00)")
+        self.valor_personalizado.setStyleSheet(input_style)
+        self.valor_personalizado.setVisible(False)
+        card_layout.addWidget(self.valor_personalizado)
+        
+        # Verificar se deve mostrar o campo de valor personalizado no início
+        self.on_plano_changed(plano_atual)
+        
+        # Campo Status
+        status_label = QLabel("Status:")
+        status_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333; margin-top: 10px;")
+        card_layout.addWidget(status_label)
+        
+        self.status = QComboBox()
+        self.status.addItems(["PENDENTE", "PAGO"])
+        self.status.setStyleSheet(input_style)
+        
+        # Definir status atual
+        status_atual = self.dados[5] if self.dados[5] else "PENDENTE"
+        self.status.setCurrentText(status_atual)
+        
+        card_layout.addWidget(self.status)
+        
+        # Botões
+        buttons_layout = QHBoxLayout()
+        
+        btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                border-radius: 8px;
+                padding: 12px 25px;
+                font-weight: bold;
+                font-size: 14px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+        """)
+        btn_cancelar.clicked.connect(self.reject)
+        
+        btn_vincular = QPushButton("Vincular")
+        btn_vincular.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border-radius: 8px;
+                padding: 12px 25px;
+                font-weight: bold;
+                font-size: 14px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+        """)
+        btn_vincular.clicked.connect(self.vincular_responsavel)
+        
+        btn_salvar = QPushButton("Salvar")
+        btn_salvar.setStyleSheet("""
+            QPushButton {
+                background-color: #e50914;
+                color: white;
+                border-radius: 8px;
+                padding: 12px 25px;
+                font-weight: bold;
+                font-size: 14px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #d00813;
+            }
+        """)
+        btn_salvar.clicked.connect(self.salvar)
+        
+        buttons_layout.addWidget(btn_cancelar)
+        buttons_layout.addWidget(btn_vincular)
+        buttons_layout.addWidget(btn_salvar)
+        
+        card_layout.addLayout(buttons_layout)
+        
+        main.addWidget(card)
+    
+    def on_plano_changed(self, plano_texto):
+        """Controla a visibilidade do campo de valor personalizado"""
+        is_personalizado = "personalizado" in plano_texto.lower()
+        self.valor_personalizado_label.setVisible(is_personalizado)
+        self.valor_personalizado.setVisible(is_personalizado)
+        
+        # Se é personalizado e já tem um valor definido no plano, preencher o campo
+        if is_personalizado and "r$" in plano_texto.lower():
+            import re
+            match = re.search(r'r\$(\d+(?:\.\d{2})?)', plano_texto.lower())
+            if match:
+                self.valor_personalizado.setText(match.group(1))
+    
+    def salvar(self):
+        """Salva as alterações da mensalidade"""
+        try:
+            mensalidade_id = self.dados[0]
+            nova_data_venc = self.data_venc.date().toString("yyyy-MM-dd")
+            novo_plano = self.plano.currentText()
+            novo_status = self.status.currentText()
+            
+            # Se é plano personalizado, incluir o valor no nome do plano
+            if "personalizado" in novo_plano.lower() and self.valor_personalizado.isVisible():
+                valor_personalizado = self.valor_personalizado.text().strip()
+                if valor_personalizado:
+                    try:
+                        # Validar se é um valor numérico válido
+                        valor_float = float(valor_personalizado.replace(",", "."))
+                        novo_plano = f"Personalizado - R${valor_float:.2f}"
+                    except ValueError:
+                        show_error(self, "Erro", "Valor personalizado inválido. Use apenas números (ex: 250.00)")
+                        return
+                else:
+                    show_error(self, "Erro", "Digite um valor para o plano personalizado.")
+                    return
+            
+            # Atualizar mensalidade no banco
+            from database.db import get_conn
+            conn = get_conn()
+            cur = conn.cursor()
+            
+            # Atualizar mensalidade
+            cur.execute("""
+                UPDATE mensalidades 
+                SET data_vencimento=?, status=?
+                WHERE id=?
+            """, (nova_data_venc, novo_status, mensalidade_id))
+            
+            # Atualizar plano do aluno
+            aluno_id = self.dados[1]  # aluno_id
+            cur.execute("""
+                UPDATE alunos 
+                SET plano=?
+                WHERE id=?
+            """, (novo_plano, aluno_id))
+            
+            conn.commit()
+            conn.close()
+            
+            # Notificar parent para atualizar
+            if hasattr(self.parent(), 'limpar_selecoes_cards'):
+                self.parent().limpar_selecoes_cards()
+            
+            show_info(self.parent(), "Sucesso", "Mensalidade atualizada com sucesso!")
+            self.accept()
+            
+        except Exception as e:
+            show_error(self.parent(), "Erro", f"Erro ao atualizar mensalidade: {str(e)}")
+
+    def vincular_responsavel(self):
+        """Vincula o aluno a um responsável como dependente"""
+        from ui.app_dialog import show_input, show_error, show_warning, show_info
+        
+        # Solicitar CPF do responsável
+        cpf_responsavel, ok = show_input(
+            self, 
+            "Vincular Responsável", 
+            "Digite o CPF do responsável:",
+            "000.000.000-00"
+        )
+        
+        if not ok or not cpf_responsavel.strip():
+            return
+            
+        # Limpar CPF (remover caracteres especiais)
+        cpf_responsavel = ''.join(filter(str.isdigit, cpf_responsavel.strip()))
+        
+        if len(cpf_responsavel) != 11:
+            show_error(self, "CPF Inválido", "O CPF deve ter 11 dígitos.")
+            return
+            
+        try:
+            from database.db import get_conn
+            conn = get_conn()
+            cur = conn.cursor()
+            
+            # Verificar se existe um aluno adulto com esse CPF
+            cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf_responsavel,))
+            responsavel = cur.fetchone()
+            
+            if not responsavel:
+                show_error(self, "Responsável não encontrado", 
+                          f"Não foi encontrado nenhum aluno adulto ativo com o CPF: {cpf_responsavel}")
+                conn.close()
+                return
+            
+            responsavel_id, responsavel_nome = responsavel
+            aluno_id = self.dados[1]  # ID do aluno atual
+            
+            # Buscar nome do dependente para mensagens
+            cur.execute("SELECT nome FROM alunos WHERE id = ?", (aluno_id,))
+            dependente_nome = cur.fetchone()[0]
+            
+            # Verificar se já não está vinculado
+            cur.execute("SELECT responsavel_id FROM alunos WHERE id = ?", (aluno_id,))
+            resultado = cur.fetchone()
+            
+            if resultado and resultado[0]:
+                show_warning(self, "Já vinculado", f"O aluno {dependente_nome} já possui um responsável vinculado.")
+                conn.close()
+                return
+            
+            # Vincular o aluno ao responsável
+            cur.execute("UPDATE alunos SET responsavel_id = ? WHERE id = ?", (responsavel_id, aluno_id))
+            
+            # NOVA REGRA: Sincronização de plano e obrigatoriedade de atualização
+            try:
+                responsavel_para_atualizar = self.sincronizar_plano_familiar(cur, responsavel_id, aluno_id)
+            except Exception as e:
+                # Se der erro na sincronização, ainda continuar com a vinculação
+                print(f"Aviso: Erro ao sincronizar plano familiar: {e}")
+                responsavel_para_atualizar = responsavel_id
+            
+            conn.commit()
+            conn.close()
+            
+            # Mostrar sucesso da vinculação
+            show_info(self, "Sucesso", f"Aluno {dependente_nome} vinculado com sucesso ao responsável: {responsavel_nome}")
+            
+            # NOVO: Dialog obrigatório para atualização do plano do responsável
+            show_warning(
+                self, 
+                "⚠️ Atualização de Plano Obrigatória", 
+                f"O responsável {responsavel_nome} agora possui dependentes vinculados.\n\n"
+                f"✅ Dependente vinculado: {dependente_nome}\n"
+                f"📋 Status do dependente: Vinculado ao responsável\n\n"
+                f"🔄 AÇÃO OBRIGATÓRIA:\n"
+                f"O plano do responsável precisa ser atualizado para refletir a estrutura familiar.\n\n"
+                f"Você será redirecionado para a tela de edição do responsável."
+            )
+            
+            # Fechar o diálogo de edição
+            self.accept()
+            
+            # Redirecionar obrigatoriamente para edição do responsável
+            self.abrir_edicao_responsavel(responsavel_para_atualizar, responsavel_nome)
+            
+            # Recarregar a interface financeira
+            if hasattr(self.parent(), 'load'):
+                self.parent().load()
+            
+        except Exception as e:
+            show_error(self, "Erro", f"Erro ao vincular responsável: {str(e)}")
+
+    def sincronizar_plano_familiar(self, cursor, responsavel_id, dependente_id):
+        """Prepara a sincronização do plano familiar - agora apenas vincula o dependente"""
+        # NOVA REGRA: Dependente recebe indicação de vinculação
+        cursor.execute("UPDATE alunos SET plano = ? WHERE id = ?", ("Vinculado ao responsável", dependente_id))
+        
+        # Retornar ID do responsável para posterior atualização obrigatória
+        return responsavel_id
+
+    def abrir_edicao_responsavel(self, responsavel_id, responsavel_nome):
+        """Abre a tela de edição do responsável para atualização obrigatória do plano"""
+        try:
+            # Encontrar a aba dos alunos para navegar
+            parent_tabs = self.parent().parent()  # Financeiro_tab está dentro de um dialog, então precisa subir mais um nível
+            for i in range(parent_tabs.count()):
+                tab = parent_tabs.widget(i)
+                if hasattr(tab, 'editar') and hasattr(tab, 'aluno_atual'):  # Verifica se é a aba de alunos
+                    parent_tabs.setCurrentWidget(tab)  # Navega para a aba
+                    
+                    # Buscar os dados do responsável
+                    from database.db import get_conn
+                    conn = get_conn()
+                    cur = conn.cursor()
+                    cur.execute("SELECT * FROM alunos WHERE id = ?", (responsavel_id,))
+                    dados_responsavel = cur.fetchone()
+                    conn.close()
+                    
+                    if dados_responsavel:
+                        # Converter para dicionário
+                        colunas = ['id', 'nome', 'cpf', 'email', 'telefone', 'cep', 'endereco', 'data_nascimento', 'faixa', 'grau', 'peso', 'altura', 'plano', 'foto_path', 'certificado_path', 'ativo', 'criado_em', 'biometria_data', 'responsavel_id']
+                        dados_dict = dict(zip(colunas, dados_responsavel))
+                        
+                        # Selecionar o responsável e abrir edição
+                        tab.aluno_atual = dados_dict
+                        tab.editar()
+                    else:
+                        show_error(self, "Erro", f"Responsável com ID {responsavel_id} não encontrado!")
+                    break
+            else:
+                # Se não encontrar a aba de alunos, mostrar aviso
+                show_warning(
+                    self, 
+                    "Navegação", 
+                    f"Por favor, vá manualmente para a aba 'Alunos' e edite o responsável:\n\n"
+                    f"📋 Nome: {responsavel_nome}\n"
+                    f"🆔 ID: {responsavel_id}\n\n"
+                    f"⚠️ É obrigatório atualizar o plano para refletir a estrutura familiar!"
+                )
+        except Exception as e:
+            show_error(
+                self,
+                "Erro de Navegação", 
+                f"Erro ao navegar para edição do responsável:\n{str(e)}\n\n"
+                f"Por favor, vá manualmente para a aba 'Alunos' e edite:\n"
+                f"📋 Nome: {responsavel_nome}\n"
+                f"🆔 ID: {responsavel_id}"
+            )
+
+    def load(self):
+        """Carrega os dados das mensalidades"""
+        try:
+            dados = listar_mensalidades()
+            self.popular_cards(dados)
+            
+        except Exception as e:
+            show_error(self, "Erro ao carregar dados", f"Erro: {str(e)}")
+
+    def popular_cards(self, dados):
+        """Popula os cards com os dados das mensalidades"""
+        # Limpar cards existentes
+        while self.cards_layout.count():
+            child = self.cards_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+        
+        # Criar novo card para cada mensalidade
+        for row in dados:
+            card = self.create_mensalidade_card(row)
+            self.cards_layout.addWidget(card)
+        
+        # Adicionar espaçador no final
+        self.cards_layout.addStretch()
+
+    def filtrar_dados(self):
+        """Filtra dados por status"""
+        status = self.status_filter.currentText()
+        try:
+            if status == "Todos":
+                dados = listar_mensalidades()
+            else:
+                dados = listar_mensalidades(status)
+            
+            self.popular_cards(dados)
+        except Exception as e:
+            show_error(self, "Erro ao filtrar", f"Erro: {str(e)}")
+
+    def adicionar_selecao_card(self, card, dados):
+        """Adiciona sistema de seleção ao card"""
+        # Estado inicial - não selecionado
+        card.selecionado = False
+        card.dados_mensalidade = dados
+        
+        # Estilo original do card SEM hover para evitar conflitos
+        estilo_original = """
+            QFrame {
+                background: rgba(255,255,255,0.1);
+                border-radius: 12px;
+                border: 1px solid rgba(255,255,255,0.3);
+                margin: 5px;
+            }
+        """
+        
+        # Estilo selecionado com !important para sobrepor hover
+        estilo_selecionado = """
+            QFrame {
+                background: rgba(229,9,20,0.1) !important;
+                border-radius: 12px !important;
+                border: 3px solid #e50914 !important;
+                margin: 5px !important;
+            }
+        """
+        
+        def selecionar_card():
+            if card.selecionado:
+                # Desselecionar se já está selecionado
+                card.selecionado = False
+                card.setStyleSheet(estilo_original)
+                
+                # Remover da lista de selecionados
+                if dados in self.mensalidades_selecionadas:
+                    self.mensalidades_selecionadas.remove(dados)
+            else:
+                # Marcar este card como selecionado
+                card.selecionado = True
+                
+                # Aplicar estilo de selecionado imediatamente
+                card.setStyleSheet(estilo_selecionado)
+                
+                # Adicionar à lista de selecionados
+                if dados not in self.mensalidades_selecionadas:
+                    self.mensalidades_selecionadas.append(dados)
+            
+            # Atualizar botões baseado nas seleções
+            self.toggle_botoes(len(self.mensalidades_selecionadas) > 0)
+            
+            # Definir mensalidade atual como a última selecionada
+            if self.mensalidades_selecionadas:
+                self.mensalidade_atual = self.mensalidades_selecionadas[-1]
+            else:
+                self.mensalidade_atual = None
+        
+        def deselecionar_card():
+            card.selecionado = False
+            card.setStyleSheet(estilo_original)
+            if dados in self.mensalidades_selecionadas:
+                self.mensalidades_selecionadas.remove(dados)
+        
+        # Definir estilo inicial
+        card.setStyleSheet(estilo_original)
+        
+        # Adicionar evento de clique
+        card.mousePressEvent = lambda event: selecionar_card()
+        card.deselecionar = deselecionar_card
+        
+        # Cursor de mão para indicar que é clicável
+        from PySide6.QtCore import Qt
+        card.setCursor(Qt.PointingHandCursor)
+    
+    def limpar_selecoes_cards(self):
+        """Remove seleção de todos os cards"""
+        def limpar_recursivo(layout):
+            for i in range(layout.count()):
+                item = layout.itemAt(i)
+                if item.widget() and hasattr(item.widget(), 'selecionado') and hasattr(item.widget(), 'deselecionar'):
+                    if item.widget().selecionado:
+                        item.widget().deselecionar()
+        
+        limpar_recursivo(self.cards_layout)
+        self.mensalidade_atual = None
+        self.mensalidades_selecionadas = []
+        self.toggle_botoes(False)
+    
+    def toggle_botoes(self, enabled):
+        """Ativa/desativa botões baseado na seleção"""
+        self.btn_pagar.setEnabled(enabled)
+        self.btn_editar.setEnabled(enabled)
+        
+
+    def nova_mensalidade(self):
+        """Abre diálogo para nova mensalidade"""
+        dialog = NovaMensalidadeDialog(self)
+        if dialog.exec() == QDialog.Accepted:
+            self.limpar_selecoes_cards()
+            self.load()
+
+    def pagar_mensalidade(self):
+        """Marca mensalidades selecionadas como pagas"""
+        if not self.mensalidades_selecionadas:
+            show_error(self, "Erro", "Nenhuma mensalidade selecionada!")
+            return
+        
+        # Confirmar pagamento múltiplo
+        count = len(self.mensalidades_selecionadas)
+        if count > 1:
+            resposta = show_question(self, "Confirmar Pagamento", 
+                                   f"Deseja marcar {count} mensalidades como pagas?")
+            if not resposta:
+                return
+        
+        sucessos = 0
+        erros = 0
+        
+        try:
+            hoje = date.today().isoformat()
+            for mensalidade in self.mensalidades_selecionadas:
+                mensalidade_id = mensalidade[0]
+                try:
+                    marcar_mensalidade_paga(mensalidade_id, hoje, "Pagamento confirmado via sistema")
+                    sucessos += 1
+                except Exception as e:
+                    erros += 1
+                    print(f"Erro ao pagar mensalidade {mensalidade_id}: {str(e)}")
+            
+            if sucessos > 0:
+                if erros == 0:
+                    show_info(self, "Pagamento Confirmado", 
+                             f"{sucessos} mensalidade(s) marcada(s) como paga(s) com sucesso!")
+                else:
+                    show_info(self, "Pagamento Parcial", 
+                             f"{sucessos} mensalidade(s) paga(s) com sucesso, {erros} erro(s).")
+                self.load()
+            else:
+                show_error(self, "Erro", "Nenhuma mensalidade pôde ser paga.")
+                
+        except Exception as e:
+            show_error(self, "Erro ao confirmar pagamento", f"Erro: {str(e)}")
+    
+    def editar_mensalidade(self):
+        """Edita mensalidade selecionada"""
+        if not self.mensalidade_atual:
+            show_error(self, "Erro", "Nenhuma mensalidade selecionada!")
+            return
+            
+        mensalidade_id = self.mensalidade_atual[0]
+        # Obter dados completos da mensalidade
+        from database.db import get_conn
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT m.*, a.nome, a.plano 
+            FROM mensalidades m
+            JOIN alunos a ON m.aluno_id = a.id 
+            WHERE m.id=?
+        """, (mensalidade_id,))
+        dados = cur.fetchone()
+        conn.close()
+        
+        if dados:
+            dialog = EditarMensalidadeDialog(self, dados)
+            if dialog.exec() == QDialog.Accepted:
+                self.limpar_selecoes_cards()
+                self.load()
+    
+    def marcar_pago(self, mensalidade_id):
+        """Marca mensalidade como paga - função antiga"""
+        try:
+            hoje = date.today().isoformat()
+            marcar_mensalidade_paga(mensalidade_id, hoje, "Pagamento confirmado via sistema")
+            show_info("Pagamento Confirmado", "Mensalidade marcada como paga com sucesso!")
+            self.load()
+        except Exception as e:
+            show_error(self, "Erro ao confirmar pagamento", f"Erro: {str(e)}")
+
 
 class FinanceiroDialog(QDialog):
     """Dialog base para o sistema financeiro seguindo o padrão do projeto"""

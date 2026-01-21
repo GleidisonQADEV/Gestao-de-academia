@@ -1005,16 +1005,7 @@ class AlunosTab(BaseTab):
             if child.widget():
                 child.widget().deleteLater()
             elif child.layout():
-                self.clear_layout(child.layout())
-    
-    def clear_layout(self, layout):
-        """Limpa recursivamente um layout"""
-        while layout.count():
-            child = layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-            elif child.layout():
-                self.clear_layout(child.layout())
+                self.clear_layout_recursive(child.layout())
     
     def limpar_cards(self):
         """Remove todos os cards da tela (método legado)"""
