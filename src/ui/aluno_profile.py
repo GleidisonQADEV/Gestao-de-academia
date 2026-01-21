@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem
-from database.db import connect
+from database.db import get_conn
 
 
 class AlunoProfile(QWidget):
@@ -19,7 +19,7 @@ class AlunoProfile(QWidget):
         self.load()
 
     def load(self):
-        conn = connect()
+        conn = get_conn()
         cur = conn.cursor()
 
         cur.execute("SELECT nome, cpf, telefone, faixa, email FROM alunos WHERE id=?", (self.aluno_id,))

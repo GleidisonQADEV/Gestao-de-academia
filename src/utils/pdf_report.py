@@ -1,11 +1,11 @@
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
-from database.db import connect
+from database.db import get_conn
 
 
 def gerar_relatorio_mes(ano, mes, caminho):
-    conn = connect()
+    conn = get_conn()
     cur = conn.cursor()
 
     cur.execute("""

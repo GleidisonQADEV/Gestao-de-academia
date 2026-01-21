@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem
-from database.db import connect
+from database.db import get_conn
 
 
 class HistoricoDialog(QDialog):
@@ -20,7 +20,7 @@ class HistoricoDialog(QDialog):
         self.load(aluno_id)
 
     def load(self, aluno_id):
-        conn = connect()
+        conn = get_conn()
         cur = conn.cursor()
         cur.execute("""
             SELECT data_vencimento, valor, status, data_pagamento
