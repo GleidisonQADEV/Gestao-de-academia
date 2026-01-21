@@ -674,8 +674,12 @@ class AlunosTab(BaseTab):
 
     # ---------------- AÇÕES ----------------
 
-    def mostrar_hierarquia_familiar(self, responsavel, dependentes):
-        """Mostra responsável em cima centralizado e dependentes embaixo como organograma"""
+    def mostrar_hierarquia_familiar(self, responsavel, dependentes_adultos=None, dependentes_kids=None):
+        """Mostra hierarquia familiar: responsável → dependentes adultos → kids
+        
+        COMPATIBILIDADE: Se dependentes_adultos for uma lista e dependentes_kids for None,
+        assume que dependentes_adultos contém kids (compatibilidade com versão antiga)
+        """
         # Limpar completamente tudo
         self.limpar_cards_completo()
         
@@ -693,7 +697,7 @@ class AlunosTab(BaseTab):
         
         # Layout vertical para organizar responsável e dependentes
         layout_principal = QVBoxLayout(container_organograma)
-        layout_principal.setSpacing(30)  # Espaço maior entre níveis
+        layout_principal.setSpacing(25)  # Espaço entre níveis
         layout_principal.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         
         # === RESPONSÁVEL NO TOPO ===
@@ -706,7 +710,7 @@ class AlunosTab(BaseTab):
         # Adicionar seleção ao card responsável
         self.adicionar_selecao_card(card_responsavel, responsavel)
         
-        # Adicionar indicador visual de que é o responsável
+        # Indicador visual de que é o responsável
         card_responsavel.setStyleSheet(card_responsavel.styleSheet() + """
             QFrame {
                 border: 2px solid #e50914;
@@ -717,38 +721,76 @@ class AlunosTab(BaseTab):
         layout_responsavel.addWidget(card_responsavel)
         layout_principal.addLayout(layout_responsavel)
         
-        # === LINHA VISUAL DE CONEXÃO ===
-        if dependentes:
-            linha = QFrame()
-            linha.setFrameShape(QFrame.HLine)
-            linha.setFixedHeight(2)
-            linha.setStyleSheet("background: #e50914; border: none;")
-            layout_principal.addWidget(linha)
-        
-        # === DEPENDENTES EMBAIXO ===
-        if dependentes:
-            layout_dependentes = QHBoxLayout()
-            layout_dependentes.setAlignment(Qt.AlignHCenter)
-            layout_dependentes.setSpacing(20)
+        # === DEPENDENTES ADULTOS (NOVO NÍVEL) ===
+        if dependentes_adultos:
+            # Linha de conexão para dependentes adultos
+            linha_adultos = QFrame()
+            linha_adultos.setFrameShape(QFrame.HLine)
+            linha_adultos.setFixedHeight(2)
+            linha_adultos.setStyleSheet("background: #ffa500; border: none;")  # Cor laranja para adultos
+            layout_principal.addWidget(linha_adultos)
             
-            for dependente in dependentes:
-                card_dependente = AlunoCard()
-                card_dependente.set_dados(dependente)
-                card_dependente.setVisible(True)
-                # Adicionar seleção ao card dependente
-                self.adicionar_selecao_card(card_dependente, dependente)
+            layout_adultos = QHBoxLayout()
+            layout_adultos.setAlignment(Qt.AlignHCenter)
+            layout_adultos.setSpacing(15)
+            
+            for dependente_adulto in dependentes_adultos:
+                card_adulto = AlunoCard()
+                card_adulto.set_dados(dependente_adulto)
+                card_adulto.setVisible(True)
+                # Adicionar seleção ao card dependente adulto
+                self.adicionar_selecao_card(card_adulto, dependente_adulto)
                 
-                # Estilo diferenciado para dependentes
-                card_dependente.setStyleSheet(card_dependente.styleSheet() + """
+                # Estilo diferenciado para dependentes adultos
+                card_adulto.setStyleSheet(card_adulto.styleSheet() + """
                     QFrame {
-                        border: 1px solid rgba(255,200,0,0.6);
-                        background: rgba(255,255,255,0.08);
+                        border: 1px solid rgba(255,165,0,0.8);
+                        background: rgba(255,165,0,0.1);
                     }
                 """)
                 
-                layout_dependentes.addWidget(card_dependente)
+                layout_adultos.addWidget(card_adulto)
             
-            layout_principal.addLayout(layout_dependentes)
+            layout_principal.addLayout(layout_adultos)
+        
+        # === KIDS EMBAIXO ===
+        if dependentes_kids:
+            # Linha de conexão para kids
+            linha_kids = QFrame()
+            linha_kids.setFrameShape(QFrame.HLine)
+            linha_kids.setFixedHeight(2)
+            linha_kids.setStyleSheet("background: #00ff99; border: none;")  # Cor verde para kids
+            layout_principal.addWidget(linha_kids)
+            
+            layout_kids = QHBoxLayout()
+            layout_kids.setAlignment(Qt.AlignHCenter)
+            layout_kids.setSpacing(15)
+            
+            for dependente_kid in dependentes_kids:
+                card_kid = AlunoCard()
+                card_kid.set_dados(dependente_kid)
+                card_kid.setVisible(True)
+                # Adicionar seleção ao card kid
+                self.adicionar_selecao_card(card_kid, dependente_kid)
+                
+                # Estilo diferenciado para kids
+                card_kid.setStyleSheet(card_kid.styleSheet() + """
+                    QFrame {
+                        border: 1px solid rgba(0,255,153,0.6);
+                        background: rgba(0,255,153,0.08);
+                    }
+                """)
+                
+                layout_kids.addWidget(card_kid)
+            
+            layout_principal.addLayout(layout_kids)
+        
+        # === COMPATIBILIDADE COM CHAMADAS ANTIGAS ===
+        # Se foi chamado com parâmetros antigos (responsavel, dependentes), 
+        # tratar dependentes como kids
+        if dependentes_adultos is None and dependentes_kids is None:
+            # Esta é uma chamada antiga - não fazer nada, já foi tratado acima
+            pass
         
         # Adicionar o organograma ao layout horizontal centralizado
         layout_horizontal.addWidget(container_organograma)
@@ -910,11 +952,21 @@ class AlunosTab(BaseTab):
         adultos_encontrados = [a for a in alunos_encontrados if a["tipo"] == "adulto"]
         kids_encontrados = [k for k in alunos_encontrados if k["tipo"] == "kids"]
         
-        # Verificar se algum adulto tem dependentes
+        # Verificar se algum adulto tem dependentes (adultos ou kids)
         responsavel_com_dependentes = None
-        dependentes = []
+        dependentes_adultos = []  # NOVA: dependentes adultos
+        dependentes_kids = []     # Kids dependentes
         
         for adulto in adultos_encontrados:
+            # Procurar dependentes adultos vinculados a este responsável
+            adultos_dependentes = []
+            for registro in self.registros:
+                if (registro["tipo"] == "adulto" and 
+                    registro.get("responsavel_id") and
+                    registro["responsavel_id"] == adulto["id"] and
+                    registro["id"] != adulto["id"]):  # Não incluir ele mesmo
+                    adultos_dependentes.append(registro)
+            
             # Procurar kids que têm este adulto como responsável
             kids_deste_adulto = []
             for registro in self.registros:
@@ -922,14 +974,16 @@ class AlunosTab(BaseTab):
                     registro.get("responsavel_cpf") == adulto["cpf"]):
                     kids_deste_adulto.append(registro)
             
-            if kids_deste_adulto:
+            # Se tem dependentes (adultos ou kids), este é o responsável da hierarquia
+            if adultos_dependentes or kids_deste_adulto:
                 responsavel_com_dependentes = adulto
-                dependentes = kids_deste_adulto
+                dependentes_adultos = adultos_dependentes
+                dependentes_kids = kids_deste_adulto
                 break
         
-        if responsavel_com_dependentes and dependentes:
-            # Mostrar hierarquia: responsável em cima, dependentes embaixo
-            self.mostrar_hierarquia_familiar(responsavel_com_dependentes, dependentes)
+        if responsavel_com_dependentes and (dependentes_adultos or dependentes_kids):
+            # Mostrar hierarquia: responsável → dependentes adultos → kids
+            self.mostrar_hierarquia_familiar(responsavel_com_dependentes, dependentes_adultos, dependentes_kids)
         else:
             # Mostrar resultado normal em grid
             alunos_ordenados = sorted(alunos_encontrados, key=lambda x: x["nome"].lower())

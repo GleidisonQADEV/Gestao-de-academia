@@ -697,10 +697,37 @@ class CadastroAlunoTab(BaseTab):
             # Vincular o aluno ao responsável
             cur.execute("UPDATE alunos SET responsavel_id = ? WHERE id = ?", (responsavel_id, dependente_id))
             
+            # NOVA REGRA: Sincronização de plano e obrigatoriedade de atualização
+            try:
+                responsavel_para_atualizar = self.sincronizar_plano_familiar(cur, responsavel_id, dependente_id)
+            except Exception as e:
+                # Se der erro na sincronização, ainda continuar com a vinculação
+                print(f"Aviso: Erro ao sincronizar plano familiar: {e}")
+                responsavel_para_atualizar = responsavel_id
+            
             conn.commit()
             conn.close()
             
+            # Mostrar sucesso da vinculação
             show_info(self, "Sucesso", f"Aluno {dependente_nome} vinculado com sucesso ao responsável: {responsavel_nome}")
+            
+            # NOVO: Dialog obrigatório para atualização do plano do responsável
+            from ui.app_dialog import show_warning, show_question
+            
+            # Dialog informativo obrigatório
+            show_warning(
+                self, 
+                "⚠️ Atualização de Plano Obrigatória", 
+                f"O responsável {responsavel_nome} agora possui dependentes vinculados.\n\n"
+                f"✅ Dependente vinculado: {dependente_nome}\n"
+                f"📋 Status do dependente: Vinculado ao responsável\n\n"
+                f"🔄 AÇÃO OBRIGATÓRIA:\n"
+                f"O plano do responsável precisa ser atualizado para refletir a estrutura familiar.\n\n"
+                f"Você será redirecionado para a tela de edição do responsável."
+            )
+            
+            # Redirecionar obrigatoriamente para edição do responsável
+            self.abrir_edicao_responsavel(responsavel_para_atualizar, responsavel_nome)
             
             # Recarregar a lista de alunos se houver callback
             if self.refresh_callback:
@@ -708,3 +735,61 @@ class CadastroAlunoTab(BaseTab):
             
         except Exception as e:
             show_error(self, "Erro", f"Erro ao vincular responsável: {str(e)}")
+    def abrir_edicao_responsavel(self, responsavel_id, responsavel_nome):
+        """Abre a tela de edição do responsável para atualização obrigatória do plano"""
+        try:
+            # Encontrar a aba dos alunos para navegar
+            parent_tabs = self.parent()
+            for i in range(parent_tabs.count()):
+                tab = parent_tabs.widget(i)
+                if hasattr(tab, 'editar') and hasattr(tab, 'aluno_atual'):  # Verifica se é a aba de alunos
+                    parent_tabs.setCurrentWidget(tab)  # Navega para a aba
+                    
+                    # Buscar os dados do responsável
+                    from database.db import get_db_connection
+                    conn = get_db_connection()
+                    cur = conn.cursor()
+                    cur.execute("SELECT * FROM alunos WHERE id = ?", (responsavel_id,))
+                    dados_responsavel = cur.fetchone()
+                    conn.close()
+                    
+                    if dados_responsavel:
+                        # Converter para dicionário
+                        colunas = ['id', 'nome', 'cpf', 'nascimento', 'telefone', 'endereco', 'plano', 'ativo', 'responsavel_id']
+                        dados_dict = dict(zip(colunas, dados_responsavel))
+                        
+                        # Selecionar o responsável e abrir edição
+                        tab.aluno_atual = dados_dict
+                        tab.editar()
+                    else:
+                        from ui.app_dialog import show_error
+                        show_error(self, "Erro", f"Responsável com ID {responsavel_id} não encontrado!")
+                    break
+            else:
+                # Se não encontrar a aba de alunos, mostrar aviso
+                from ui.app_dialog import show_warning
+                show_warning(
+                    self, 
+                    "Navegação", 
+                    f"Por favor, vá manualmente para a aba 'Alunos' e edite o responsável:\n\n"
+                    f"📋 Nome: {responsavel_nome}\n"
+                    f"🆔 ID: {responsavel_id}\n\n"
+                    f"⚠️ É obrigatório atualizar o plano para refletir a estrutura familiar!"
+                )
+        except Exception as e:
+            from ui.app_dialog import show_error
+            show_error(
+                self,
+                "Erro de Navegação", 
+                f"Erro ao navegar para edição do responsável:\n{str(e)}\n\n"
+                f"Por favor, vá manualmente para a aba 'Alunos' e edite:\n"
+                f"📋 Nome: {responsavel_nome}\n"
+                f"🆔 ID: {responsavel_id}"
+            )
+    def sincronizar_plano_familiar(self, cursor, responsavel_id, dependente_id):
+        """Prepara a sincronização do plano familiar - agora apenas vincula o dependente"""
+        # NOVA REGRA: Dependente recebe indicação de vinculação
+        cursor.execute("UPDATE alunos SET plano = ? WHERE id = ?", ("Vinculado ao responsável", dependente_id))
+        
+        # Retornar ID do responsável para posterior atualização obrigatória
+        return responsavel_id
