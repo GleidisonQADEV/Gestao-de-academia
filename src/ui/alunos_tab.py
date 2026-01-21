@@ -1449,6 +1449,15 @@ class AlunosTab(BaseTab):
         self.btn_edit.setVisible(show)
         self.btn_toggle.setVisible(show)
         self.btn_del.setVisible(show)
+        self.btn_vincular.setVisible(show)
+
+    def vincular_responsavel(self):
+        """Vincula um aluno existente a um responsável (usando função utilitária)"""
+        from utils.vincular_utils import vincular_aluno_responsavel
+        
+        if vincular_aluno_responsavel(self):
+            # Recarregar dados para mostrar as mudanças
+            self.load()
 
 
 # ================= DIALOG DE EDIÇÃO =================
