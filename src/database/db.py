@@ -118,6 +118,33 @@ def init_db():
         ]
         cur.executemany("INSERT INTO planos (nome, valor) VALUES (?, ?)", planos_padrao)
 
+    # ---- tabela kids ----
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS kids (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            cpf TEXT UNIQUE,
+            resp_nome TEXT NOT NULL,
+            resp_cpf TEXT NOT NULL,
+            email TEXT,
+            telefone TEXT NOT NULL,
+            cep TEXT NOT NULL,
+            endereco TEXT NOT NULL,
+            data_nascimento TEXT NOT NULL,
+            faixa TEXT,
+            grau TEXT,
+            peso TEXT,
+            altura TEXT,
+            plano TEXT,
+            foto_path TEXT,
+            certificado_path TEXT,
+            biometria_data TEXT,
+            ativo INTEGER DEFAULT 1,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            responsavel_cpf TEXT
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -349,7 +376,7 @@ def listar_mensalidades(status=None):
                 ELSE 'unknown'
             END as tipo_aluno
         FROM mensalidades m
-        LEFT JOIN alunos a ON m.aluno_id = a.id AND a.ativo = 1
+        LEFT JOIN alunos a ON m.aluno_id = a.id AND a.ativo = 1 AND a.responsavel_id IS NULL
         LEFT JOIN kids k ON m.aluno_id = -k.id AND k.ativo = 1
         WHERE (a.id IS NOT NULL OR k.id IS NOT NULL)
     """
@@ -442,8 +469,8 @@ def gerar_mensalidades_automaticas():
     
     mensalidades_criadas = 0
     
-    # Processar alunos adultos
-    cur.execute("SELECT id, nome, plano FROM alunos WHERE ativo = 1")
+    # Processar alunos adultos (excluir dependentes vinculados a responsáveis)
+    cur.execute("SELECT id, nome, plano FROM alunos WHERE ativo = 1 AND responsavel_id IS NULL")
     alunos = cur.fetchall()
     
     for aluno_id, nome, plano in alunos:

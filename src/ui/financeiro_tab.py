@@ -48,12 +48,6 @@ class FinanceiroTab(BaseTab):
         # Barra de ações
         actions_layout = QHBoxLayout()
         
-        # Botão desabilitado - sistema automático implementado
-        # btn_gerar = QPushButton("🔄 Gerar Mensalidades")
-        # btn_gerar.setStyleSheet(self.get_button_style("#28a745"))
-        # btn_gerar.clicked.connect(self.gerar_mensalidades)
-        
-        # actions_layout.addWidget(btn_gerar)
         actions_layout.addStretch()
         
         layout.addLayout(actions_layout)
@@ -744,11 +738,12 @@ class FinanceiroTab(BaseTab):
             from datetime import date
             hoje = date.today()
             
-            # Criar novas mensalidades baseadas nos planos existentes dos alunos
+            # Criar novas mensalidades baseadas nos planos existentes dos alunos (excluir dependentes)
             cur.execute("""
                 SELECT a.id, a.nome, a.plano 
                 FROM alunos a 
-                WHERE a.ativo = 1 AND a.plano IS NOT NULL AND a.plano != ''
+                WHERE a.ativo = 1 AND a.plano IS NOT NULL AND a.plano != '' 
+                AND a.responsavel_id IS NULL
             """)
             alunos = cur.fetchall()
             
@@ -1390,15 +1385,6 @@ class EditarMensalidadeDialog(QDialog):
             self.popular_cards(dados)
         except Exception as e:
             show_error(self, "Erro ao filtrar", f"Erro: {str(e)}")
-
-    def gerar_mensalidades(self):
-        """Gera mensalidades automáticas"""
-        try:
-            criadas = gerar_mensalidades_automaticas()
-            show_info(self, "Mensalidades Geradas", f"Foram criadas {criadas} mensalidades automáticas.")
-            self.load()
-        except Exception as e:
-            show_error(self, "Erro ao gerar mensalidades", f"Erro: {str(e)}")
 
     def adicionar_selecao_card(self, card, dados):
         """Adiciona sistema de seleção ao card"""

@@ -176,15 +176,15 @@ class TestFluxoCompletoAluno:
         # Kid (ID negativo no sistema de mensalidades)
         criar_mensalidade(-kid_id, 80.0, date.today(), 'Mensalidade kid')
         
-        # 9. Verificar mensalidades da família
+        # 9. Verificar mensalidades da familia (dependente não aparece, apenas responsável e kids)
         mensalidades_familia = listar_mensalidades()
-        assert len(mensalidades_familia) == 3
+        assert len(mensalidades_familia) == 2  # Apenas responsável e kid
         
-        # Verificar valores
+        # Verificar valores (dependente não aparece, apenas responsável e kid)
         valores = [m[2] for m in mensalidades_familia]
         assert 200.0 in valores  # Responsável
-        assert 100.0 in valores  # Dependente
         assert 80.0 in valores   # Kid
+        # Dependente não deve aparecer na listagem (100.0)
 
 
 class TestFluxoFinanceiro:
@@ -395,13 +395,13 @@ class TestIntegracaoCompleta:
             msg_id = criar_mensalidade(aluno_id, valor, date.today(), obs)
             mensalidades_ids.append(msg_id)
         
-        # Verificar total de mensalidades
+        # Verificar total de mensalidades (dependentes não aparecem na listagem)
         todas_mensalidades = listar_mensalidades()
-        assert len(todas_mensalidades) == 4
+        assert len(todas_mensalidades) == 3  # Ana (resp), Carla (kid), Roberto (resp) - Bruno (dependente) não aparece
         
         # Verificar valor total da academia
         receita_total = sum(m[2] for m in todas_mensalidades)
-        assert receita_total == 600.0  # 250 + 120 + 80 + 150
+        assert receita_total == 480.0  # 250 + 80 + 150 (Bruno dependente não conta)
         
         # Verificar estrutura familiar
         todos_alunos = listar_todos_alunos()
@@ -426,14 +426,14 @@ class TestIntegracaoCompleta:
         pagas = [m for m in mensalidades_finais if m[5] == 'PAGO']
         pendentes = [m for m in mensalidades_finais if m[5] == 'PENDENTE']
         
-        assert len(pagas) == 2
-        assert len(pendentes) == 2
+        assert len(pagas) == 2  # Ana e Roberto (responsáveis)
+        assert len(pendentes) == 1  # Apenas Carla (kid) - Bruno (dependente) não aparece
         
         receita_paga = sum(m[2] for m in pagas)
         assert receita_paga == 400.0  # 250 + 150
         
         receita_pendente = sum(m[2] for m in pendentes)
-        assert receita_pendente == 200.0  # 120 + 80
+        assert receita_pendente == 80.0  # Apenas Carla (kid) - Bruno (dependente) não aparece
 
 
 class TestRobustezSistema:

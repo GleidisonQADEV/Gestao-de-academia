@@ -283,19 +283,13 @@ class TestResponsavelFunctionality:
         msg1_id = criar_mensalidade(responsavel_id, 280.0, date.today(), 'Plano Familiar')
         msg2_id = criar_mensalidade(dependente_id, 100.0, date.today(), 'Plano Kids')
         
-        # Verificar mensalidades na listagem
+        # Verificar mensalidades na listagem (apenas responsáveis devem aparecer)
         mensalidades = listar_mensalidades()
-        assert len(mensalidades) == 2
+        assert len(mensalidades) == 1  # Apenas o responsável deve aparecer
         
-        # Verificar valores
-        valores = [m[2] for m in mensalidades]
-        assert 280.0 in valores
-        assert 100.0 in valores
-        
-        # Verificar nomes dos alunos
-        nomes = [m[1] for m in mensalidades]
-        assert 'Patricia Costa' in nomes
-        assert 'Gabriel Costa' in nomes
+        # Verificar que apenas a mensalidade do responsável aparece
+        assert mensalidades[0][1] == 'Patricia Costa'  # Nome do responsável
+        assert mensalidades[0][2] == 280.0  # Valor da mensalidade do responsável
     
     def test_desvincular_dependente(self, temp_db):
         """Teste desvinculação de dependente"""
@@ -578,9 +572,9 @@ class TestResponsavelFunctionality:
         assert filho2[19] == 'Sandra Oliveira'
         assert filho3[19] == 'Ricardo Santos'
         
-        # Verificar mensalidades totais
+        # Verificar mensalidades totais (apenas responsáveis devem aparecer na listagem)
         mensalidades_total = listar_mensalidades()
-        assert len(mensalidades_total) == 5
+        assert len(mensalidades_total) == 2  # Apenas Sandra e Ricardo (responsáveis)
         
         receita_total = sum(m[2] for m in mensalidades_total)
-        assert receita_total == 1790.0  # 250+120+100+1200+120
+        assert receita_total == 1450.0  # 250 (Sandra) + 1200 (Ricardo) - dependentes não aparecem na listagem
