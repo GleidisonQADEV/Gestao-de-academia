@@ -106,26 +106,35 @@ class FinanceiroTab(BaseTab):
 
         # Widget de abas para meses
         self.tab_widget = QTabWidget()
+        
+        # Tornar as abas scrolláveis para telas menores
+        self.tab_widget.tabBar().setUsesScrollButtons(True)
+        self.tab_widget.tabBar().setElideMode(Qt.ElideNone)
+        self.tab_widget.tabBar().setExpanding(False)
+        
         self.tab_widget.setStyleSheet("""
             QTabWidget::pane {
                 background: transparent;
                 border: none;
             }
             QTabWidget::tab-bar {
-                alignment: left;
+                alignment: center;
             }
             QTabBar {
                 qproperty-drawBase: 0;
+                qproperty-usesScrollButtons: true;
+                qproperty-expanding: false;
             }
             QTabBar::tab {
                 background: rgba(255,255,255,0.1);
                 color: white;
-                padding: 10px 20px;
-                margin-right: 2px;
-                border-radius: 8px 8px 0px 0px;
+                padding: 8px 10px;
+                margin-right: 1px;
+                border-radius: 6px 6px 0px 0px;
                 font-weight: bold;
-                font-size: 13px;
-                min-width: 80px;
+                font-size: 10px;
+                min-width: 40px;
+                max-width: 65px;
                 border: 2px solid transparent;
             }
             QTabBar::tab:hover:!selected {
@@ -145,6 +154,35 @@ class FinanceiroTab(BaseTab):
             QTabBar::tab:focus {
                 outline: none;
                 background-color: rgba(229,9,20,0.7);
+            }
+            QTabBar::scroller {
+                width: 25px;
+                background: rgba(255,255,255,0.1);
+                border-radius: 4px;
+            }
+            QTabBar QToolButton {
+                background: rgba(229,9,20,0.8);
+                color: white;
+                border-radius: 3px;
+                margin: 1px;
+                font-weight: bold;
+                width: 20px;
+                height: 20px;
+            }
+            QTabBar QToolButton:hover {
+                background: rgba(229,9,20,1.0);
+            }
+            QTabBar QToolButton::left-arrow {
+                image: none;
+                border-left: 4px solid white;
+                border-top: 4px solid transparent;
+                border-bottom: 4px solid transparent;
+            }
+            QTabBar QToolButton::right-arrow {
+                image: none;
+                border-right: 4px solid white;
+                border-top: 4px solid transparent;
+                border-bottom: 4px solid transparent;
             }
         """)
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
@@ -253,9 +291,10 @@ class FinanceiroTab(BaseTab):
             return 180.0
 
     def create_mensalidade_card(self, dados):
-        """Cria um card para uma mensalidade"""
+        """Cria um card para uma mensalidade com tamanho responsivo"""
         card = QFrame()
-        card.setFixedHeight(180)
+        card.setFixedHeight(180)  # Voltando para altura original
+        card.setMaximumWidth(600)  # Largura ajustada para alinhar com botões
         # Removido hover para não conflitar com seleção
         card.setStyleSheet("""
             QFrame {
@@ -267,20 +306,20 @@ class FinanceiroTab(BaseTab):
         """)
         
         layout = QHBoxLayout(card)
-        layout.setContentsMargins(20, 15, 20, 15)
-        layout.setSpacing(20)
+        layout.setContentsMargins(20, 15, 20, 15)  # Voltando aos valores originais
+        layout.setSpacing(20)  # Voltando ao espaçamento original
         
         # Lado esquerdo - Foto e informações principais
         left_layout = QVBoxLayout()
-        left_layout.setSpacing(10)
+        left_layout.setSpacing(10)  # Voltando ao espaçamento original
         
         # Container para foto e nome
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(15)
+        header_layout.setSpacing(15)  # Voltando ao espaçamento original
         
-        # Foto do aluno
+        # Foto do aluno - Tamanho original
         foto_label = QLabel()
-        foto_label.setFixedSize(70, 70)
+        foto_label.setFixedSize(70, 70)  # Voltando ao tamanho original
         foto_label.setStyleSheet("""
             QLabel {
                 background: rgba(255,255,255,0.9);
@@ -309,7 +348,7 @@ class FinanceiroTab(BaseTab):
         
         # Container para nome e valor
         info_layout = QVBoxLayout()
-        info_layout.setSpacing(8)
+        info_layout.setSpacing(8)  # Voltando ao valor original
         
         # Nome do aluno (dados[1] = nome)
         nome_aluno = dados[1] if dados[1] else "Nome não encontrado"
@@ -789,27 +828,27 @@ class FinanceiroTab(BaseTab):
             print(f"Erro ao resetar mensalidades: {e}")
 
     def criar_abas_meses(self):
-        """Cria abas para cada mês do ano"""
+        """Cria abas para cada mês do ano com nomes responsivos"""
         meses = [
-            ("01", "Janeiro"),
-            ("02", "Fevereiro"), 
-            ("03", "Março"),
-            ("04", "Abril"),
-            ("05", "Maio"),
-            ("06", "Junho"),
-            ("07", "Julho"),
-            ("08", "Agosto"),
-            ("09", "Setembro"),
-            ("10", "Outubro"),
-            ("11", "Novembro"),
-            ("12", "Dezembro")
+            ("01", "Jan", "Janeiro"),
+            ("02", "Fev", "Fevereiro"), 
+            ("03", "Mar", "Março"),
+            ("04", "Abr", "Abril"),
+            ("05", "Mai", "Maio"),
+            ("06", "Jun", "Junho"),
+            ("07", "Jul", "Julho"),
+            ("08", "Ago", "Agosto"),
+            ("09", "Set", "Setembro"),
+            ("10", "Out", "Outubro"),
+            ("11", "Nov", "Novembro"),
+            ("12", "Dez", "Dezembro")
         ]
         
-        for mes_num, mes_nome in meses:
-            # Criar scroll area para o mês
+        for mes_num, mes_curto, mes_completo in meses:
+            # Criar scroll area para o mês com melhor responsividade
             scroll_area = QScrollArea()
             scroll_area.setWidgetResizable(True)
-            scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             scroll_area.setStyleSheet("""
                 QScrollArea {
@@ -818,29 +857,52 @@ class FinanceiroTab(BaseTab):
                 }
                 QScrollBar:vertical {
                     background-color: rgba(0,0,0,0.2);
-                    width: 10px;
-                    border-radius: 5px;
+                    width: 8px;
+                    border-radius: 4px;
                 }
                 QScrollBar::handle:vertical {
                     background-color: rgba(229,9,20,0.7);
-                    border-radius: 5px;
+                    border-radius: 4px;
                     min-height: 20px;
                 }
                 QScrollBar::handle:vertical:hover {
                     background-color: rgba(229,9,20,0.9);
                 }
+                QScrollBar:horizontal {
+                    background-color: rgba(0,0,0,0.2);
+                    height: 8px;
+                    border-radius: 4px;
+                }
+                QScrollBar::handle:horizontal {
+                    background-color: rgba(229,9,20,0.7);
+                    border-radius: 4px;
+                    min-width: 20px;
+                }
+                QScrollBar::handle:horizontal:hover {
+                    background-color: rgba(229,9,20,0.9);
+                }
+                QScrollBar::add-line, QScrollBar::sub-line {
+                    border: none;
+                    background: none;
+                }
             """)
             
-            # Widget de conteúdo para cada mês
+            # Widget de conteúdo para cada mês - Melhor centralização
             content_widget = QWidget()
             content_widget.setStyleSheet("background: transparent;")
             layout = QVBoxLayout(content_widget)
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-            layout.setSpacing(10)
-            layout.setContentsMargins(10, 10, 10, 10)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+            layout.setSpacing(10)  # Voltando ao espaçamento original
+            layout.setContentsMargins(20, 15, 20, 15)  # Margens para melhor centralização
+            
+            # Garantir que os cards fiquem centralizados mesmo com largura limitada
+            content_widget.setMinimumWidth(500)  # Largura mínima para centralização
             
             scroll_area.setWidget(content_widget)
-            self.tab_widget.addTab(scroll_area, mes_nome)
+            
+            # Adicionar a aba com nome curto, mas tooltip com nome completo
+            tab_index = self.tab_widget.addTab(scroll_area, mes_curto)
+            self.tab_widget.tabBar().setTabToolTip(tab_index, mes_completo)
         
         # Definir mês atual como selecionado
         mes_atual = datetime.now().month - 1  # -1 porque índice começa em 0
