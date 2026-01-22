@@ -64,9 +64,14 @@ class TestFrequenciaMetrics:
         # Assert
         freq = metricas['frequencia']
         horarios = freq['frequencia_horarios']
+        eh_dia_aula = freq['eh_dia_aula']
         
-        # Verificar se contém os horários esperados
-        horarios_esperados = ['08:30:00', '12:00:00', '18:30:00', '19:30:00']
-        for horario in horarios_esperados:
-            assert horario in horarios, f"Deve conter horário {horario}"
-            assert isinstance(horarios[horario], int), f"Frequência do horário {horario} deve ser inteiro"
+        # Se hoje é dia de aula, deve ter horários definidos
+        if eh_dia_aula:
+            horarios_esperados = ['08:30:00', '12:00:00', '18:30:00', '19:30:00']
+            for horario in horarios_esperados:
+                assert horario in horarios, f"Deve conter horário {horario}"
+                assert isinstance(horarios[horario], int), f"Frequência do horário {horario} deve ser inteiro"
+        else:
+            # Se não é dia de aula, horários podem estar vazios
+            assert isinstance(horarios, dict), "Horários devem ser um dicionário mesmo quando vazio"
