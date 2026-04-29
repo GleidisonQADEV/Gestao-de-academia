@@ -7,7 +7,7 @@ import json
 import tempfile
 import subprocess
 
-from PySide6.QtCore import QThread, Signal, QObject
+from PySide6.QtCore import QThread, Signal
 
 
 def _parse_version(v: str) -> tuple:
