@@ -1,0 +1,95 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install PySide6==6.10.1 pyinstaller
+
+      - name: Build app
+        run: pyinstaller LegacyBJJ.spec
+
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "LegacyBJJ" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --app-drop-link 450 185 \
+            "dist/LegacyBJJ-${{ github.ref_name }}-mac.dmg" \
+            "dist/LegacyBJJ.app"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/LegacyBJJ-*-mac.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install PySide6==6.10.1 pyinstaller
+
+      - name: Build exe
+        run: pyinstaller LegacyBJJ.spec
+
+      - name: Rename exe
+        shell: bash
+        run: mv dist/LegacyBJJ.exe "dist/LegacyBJJ-${{ github.ref_name }}-windows.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: dist/LegacyBJJ-*-windows.exe
+
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: artifacts/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          name: "LegacyBJJ ${{ github.ref_name }}"
+          body: |
+            ## LegacyBJJ ${{ github.ref_name }}
+
+            ### Download
+            - **macOS**: baixe o arquivo `.dmg`
+            - **Windows**: baixe o arquivo `.exe`
+
+            ### Instalação
+            **macOS**: abra o `.dmg` e arraste o app para Applications.
+            **Windows**: execute o `.exe` diretamente, sem instalação necessária.

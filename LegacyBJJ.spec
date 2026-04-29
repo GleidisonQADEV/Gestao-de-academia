@@ -56,14 +56,15 @@ exe = EXE(
     icon=_icon,
 )
 
-app = BUNDLE(
-    exe,
-    name='LegacyBJJ.app',
-    icon=str(ROOT / 'src' / 'assets' / 'icon.icns'),
-    bundle_identifier='com.legacybjj.app',
-    info_plist={
-        'CFBundleShortVersionString': '1.0.0',
-        'CFBundleVersion':            '1.0.0',
-        'NSHighResolutionCapable':    True,
-    },
-)
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        exe,
+        name='LegacyBJJ.app',
+        icon=str(ROOT / 'src' / 'assets' / 'icon.icns'),
+        bundle_identifier='com.legacybjj.app',
+        info_plist={
+            'CFBundleShortVersionString': '1.0.0',
+            'CFBundleVersion':            '1.0.0',
+            'NSHighResolutionCapable':    True,
+        },
+    )
