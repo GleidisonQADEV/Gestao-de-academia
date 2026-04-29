@@ -343,34 +343,30 @@ def email_existe(email, excluir_id=None):
 # ---------------- FINANCEIRO ----------------
 
 def listar_mensalidades(status=None):
-    """Lista mensalidades com informações do aluno (adultos e kids) - EXCLUINDO DEPENDENTES"""
+    """Lista mensalidades de titulares de planos: adultos responsáveis e kids (exclui dependentes)."""
     conn = get_conn()
     cur = conn.cursor()
-    
-    # Query que une mensalidades com alunos adultos E kids - EXCLUINDO dependentes
+
     query = """
-        SELECT 
-            m.id, 
+        SELECT
+            m.id,
             COALESCE(a.nome, k.nome) as nome,
-            m.valor, 
-            m.data_vencimento, 
-            m.data_pagamento, 
+            m.valor,
+            m.data_vencimento,
+            m.data_pagamento,
             m.status,
             m.observacoes,
             COALESCE(a.foto_path, k.foto_path) as foto_path,
             COALESCE(a.plano, k.plano) as plano,
-            CASE 
+            CASE
                 WHEN a.id IS NOT NULL THEN 'adulto'
                 WHEN k.id IS NOT NULL THEN 'kid'
                 ELSE 'unknown'
             END as tipo_aluno
         FROM mensalidades m
-        LEFT JOIN alunos a ON m.aluno_id = a.id AND a.ativo = 1
+        LEFT JOIN alunos a ON m.aluno_id = a.id AND a.ativo = 1 AND a.responsavel_id IS NULL
         LEFT JOIN kids k ON m.aluno_id = -k.id AND k.ativo = 1
-        WHERE (
-            (a.id IS NOT NULL AND a.responsavel_id IS NULL) OR 
-            (k.id IS NOT NULL)
-        )
+        WHERE (a.id IS NOT NULL OR k.id IS NOT NULL)
     """
     
     if status:

@@ -359,11 +359,14 @@ class FinanceiroTab(BaseTab):
         try:
             # Verificar se precisa resetar para novo mês
             self.verificar_reset_mensal()
-            
+
+            # Garantir que todos os responsáveis ativos tenham mensalidade no mês atual
+            self.garantir_mensalidades_mes_atual()
+
             # Carregar mensalidades da aba atual (mês atual)
             mes_atual = self.tab_widget.currentIndex() + 1  # +1 porque mês começa em 1
             self.carregar_mensalidades_mes(mes_atual)
-            
+
         except Exception as e:
             show_error(self, "Erro ao carregar dados", f"Erro: {str(e)}")
 
@@ -556,6 +559,50 @@ class FinanceiroTab(BaseTab):
         except Exception as e:
             show_error(self, "Erro ao confirmar pagamento", f"Erro: {str(e)}")
             
+    def garantir_mensalidades_mes_atual(self):
+        """Cria mensalidades para responsáveis ativos que ainda não têm registro no mês atual."""
+        try:
+            from datetime import date as _date
+            hoje = _date.today()
+            conn = get_conn()
+            cur = conn.cursor()
+
+            cur.execute("""
+                SELECT a.id, a.plano
+                FROM alunos a
+                WHERE a.ativo = 1
+                  AND a.responsavel_id IS NULL
+                  AND a.plano IS NOT NULL
+                  AND a.plano != ''
+                  AND a.plano NOT LIKE '%bolsist%'
+            """)
+            responsaveis = cur.fetchall()
+
+            for aluno_id, plano in responsaveis:
+                cur.execute("""
+                    SELECT id FROM mensalidades
+                    WHERE aluno_id = ?
+                      AND strftime('%m', data_vencimento) = ?
+                      AND strftime('%Y', data_vencimento) = ?
+                """, (aluno_id, f"{hoje.month:02d}", str(hoje.year)))
+
+                if not cur.fetchone():
+                    valor = self.get_valor_por_plano(plano)
+                    try:
+                        data_venc = _date(hoje.year, hoje.month, 10)
+                    except ValueError:
+                        data_venc = _date(hoje.year, hoje.month, 28)
+                    cur.execute("""
+                        INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
+                        VALUES (?, ?, ?, 'PENDENTE', ?)
+                    """, (aluno_id, valor, data_venc.isoformat(),
+                          f"Mensalidade {hoje.month:02d}/{hoje.year} - {plano}"))
+
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Erro ao garantir mensalidades: {e}")
+
     def verificar_reset_mensal(self):
         """Verifica se precisa resetar status mensais"""
         try:

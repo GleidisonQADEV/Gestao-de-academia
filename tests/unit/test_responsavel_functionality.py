@@ -286,8 +286,7 @@ class TestResponsavelFunctionality:
         # Verificar mensalidades na listagem (apenas responsáveis devem aparecer)
         mensalidades = listar_mensalidades()
         assert len(mensalidades) == 1  # Apenas o responsável deve aparecer
-        
-        # Verificar que apenas a mensalidade do responsável aparece
+
         assert mensalidades[0][1] == 'Patricia Costa'  # Nome do responsável
         assert mensalidades[0][2] == 280.0  # Valor da mensalidade do responsável
     
@@ -575,6 +574,6 @@ class TestResponsavelFunctionality:
         # Verificar mensalidades totais (apenas responsáveis devem aparecer na listagem)
         mensalidades_total = listar_mensalidades()
         assert len(mensalidades_total) == 2  # Apenas Sandra e Ricardo (responsáveis)
-        
+
         receita_total = sum(m[2] for m in mensalidades_total)
         assert receita_total == 1450.0  # 250 (Sandra) + 1200 (Ricardo) - dependentes não aparecem na listagem

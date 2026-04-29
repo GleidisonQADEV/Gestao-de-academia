@@ -176,11 +176,10 @@ class TestFluxoCompletoAluno:
         # Kid (ID negativo no sistema de mensalidades)
         criar_mensalidade(-kid_id, 80.0, date.today(), 'Mensalidade kid')
         
-        # 9. Verificar mensalidades da familia (dependente não aparece, apenas responsável e kids)
+        # 9. Verificar mensalidades da familia (dependente não aparece, apenas responsável e kid)
         mensalidades_familia = listar_mensalidades()
         assert len(mensalidades_familia) == 2  # Apenas responsável e kid
-        
-        # Verificar valores (dependente não aparece, apenas responsável e kid)
+
         valores = [m[2] for m in mensalidades_familia]
         assert 200.0 in valores  # Responsável
         assert 80.0 in valores   # Kid
@@ -397,8 +396,8 @@ class TestIntegracaoCompleta:
         
         # Verificar total de mensalidades (dependentes não aparecem na listagem)
         todas_mensalidades = listar_mensalidades()
-        assert len(todas_mensalidades) == 3  # Ana (resp), Carla (kid), Roberto (resp) - Bruno (dependente) não aparece
-        
+        assert len(todas_mensalidades) == 3  # Ana (resp), Carla (kid), Roberto (ind) - Bruno (dep) não aparece
+
         # Verificar valor total da academia
         receita_total = sum(m[2] for m in todas_mensalidades)
         assert receita_total == 480.0  # 250 + 80 + 150 (Bruno dependente não conta)
@@ -428,10 +427,10 @@ class TestIntegracaoCompleta:
         
         assert len(pagas) == 2  # Ana e Roberto (responsáveis)
         assert len(pendentes) == 1  # Apenas Carla (kid) - Bruno (dependente) não aparece
-        
+
         receita_paga = sum(m[2] for m in pagas)
         assert receita_paga == 400.0  # 250 + 150
-        
+
         receita_pendente = sum(m[2] for m in pendentes)
         assert receita_pendente == 80.0  # Apenas Carla (kid) - Bruno (dependente) não aparece
 

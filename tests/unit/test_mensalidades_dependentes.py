@@ -89,12 +89,11 @@ class TestMensalidadesDependentes:
         
         # Verificar listagem - apenas responsável deve aparecer
         mensalidades = listar_mensalidades()
-        
+
         assert len(mensalidades) == 1, "Apenas responsável deve aparecer na listagem"
         assert mensalidades[0][1] == 'Ana Silva', "Responsável deve aparecer"
         assert mensalidades[0][2] == 300.0, "Valor do responsável deve estar correto"
-        
-        # Verificar que dependente não aparece
+
         nomes_na_listagem = [m[1] for m in mensalidades]
         assert 'João Silva' not in nomes_na_listagem, "Dependente não deve aparecer na listagem"
     
@@ -234,12 +233,11 @@ class TestMensalidadesDependentes:
         
         # Verificar listagem - apenas responsável deve aparecer
         mensalidades = listar_mensalidades()
-        
+
         assert len(mensalidades) == 1, "Apenas responsável deve aparecer na listagem"
         assert mensalidades[0][1] == 'Carlos Oliveira', "Responsável deve aparecer"
         assert mensalidades[0][2] == 400.0, "Valor do responsável deve estar correto"
-        
-        # Verificar que dependentes não aparecem
+
         nomes_na_listagem = [m[1] for m in mensalidades]
         assert 'Laura Oliveira' not in nomes_na_listagem, "Dependente 1 não deve aparecer"
         assert 'Bruno Oliveira' not in nomes_na_listagem, "Dependente 2 não deve aparecer"
@@ -306,11 +304,11 @@ class TestMensalidadesDependentes:
         mensalidades_pendentes = listar_mensalidades('PENDENTE')
         assert len(mensalidades_pendentes) == 1, "Apenas responsável pendente deve aparecer"
         assert mensalidades_pendentes[0][1] == 'Rita Costa', "Responsável deve aparecer"
-        
+
         # Testar filtro PAGO - nenhuma deve aparecer (dependente não conta)
         mensalidades_pagas = listar_mensalidades('PAGO')
         assert len(mensalidades_pagas) == 0, "Dependente pago não deve aparecer na listagem"
-        
+
         # Testar listagem geral - apenas responsável
         todas_mensalidades = listar_mensalidades()
         assert len(todas_mensalidades) == 1, "Apenas responsável deve aparecer no total"
@@ -419,12 +417,12 @@ class TestMensalidadesDependentes:
         # Verificar listagem - apenas responsável e independente devem aparecer
         mensalidades = listar_mensalidades()
         assert len(mensalidades) == 2, "Apenas responsável e independente devem aparecer"
-        
+
         nomes_na_listagem = [m[1] for m in mensalidades]
         assert 'Responsável Família' in nomes_na_listagem, "Responsável deve aparecer"
         assert 'Aluno Independente' in nomes_na_listagem, "Independente deve aparecer"
         assert 'Dependente Família' not in nomes_na_listagem, "Dependente não deve aparecer"
-        
+
         # Verificar valores totais
         valor_total = sum(m[2] for m in mensalidades)
         assert valor_total == 530.0, "Valor total deve ser responsável + independente (350 + 180)"
