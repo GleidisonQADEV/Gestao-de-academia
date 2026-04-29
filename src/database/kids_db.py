@@ -286,8 +286,8 @@ def inserir_kid(
                         INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
                         VALUES (?, ?, ?, 'PENDENTE', 'Mensalidade gerada automaticamente no cadastro (Kids)')
                     """, (-kid_id, valor, data_vencimento))  # ID negativo para distinguir kids
-            except:
-                pass  # Se não conseguir extrair valor, apenas pula
+            except Exception as e:
+                print(f"Erro ao gerar mensalidade automática para kid: {e}")
 
         conn.commit()
         return kid_id

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap, QFont
 
-from ui.base_tab import BaseTab, SCROLLBAR_STYLE
+from ui.base_tab_v0 import BaseTab
 from database.db import (
     listar_mensalidades, criar_mensalidade, marcar_mensalidade_paga,
     obter_mensalidades_pendentes, listar_alunos, get_conn
@@ -39,55 +39,70 @@ class FinanceiroTab(BaseTab):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        # ── TITLE ROW + FILTRO ──
-        top_row = QHBoxLayout()
-        top_row.setSpacing(12)
+        # Título principal
+        title = QLabel("💰 Gestão Financeira")
+        title.setStyleSheet("color: white; font-size: 24px; font-weight: bold; margin-bottom: 10px;")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
 
-        title = QLabel("Gestão Financeira")
-        title.setStyleSheet(
-            "color:#ffffff; font-size:22px; font-weight:700;"
-            " font-family:'Arial Black',sans-serif; background:transparent; border:none;"
-        )
-        top_row.addWidget(title)
-        top_row.addStretch()
+        # Barra de ações
+        actions_layout = QHBoxLayout()
+        
+        actions_layout.addStretch()
+        
+        layout.addLayout(actions_layout)
 
-        _combo_style = """
+        # Filtros
+        filter_layout = QHBoxLayout()
+        
+        filter_layout.addWidget(QLabel("Status:", styleSheet="color: white; font-weight: bold;"))
+        self.status_filter = QComboBox()
+        self.status_filter.addItems(["Todos", "PENDENTE", "PAGO"])
+        self.status_filter.setStyleSheet("""
             QComboBox {
-                background-color: #0e0e0e;
+                background-color: rgba(255,255,255,0.95);
                 padding: 7px 10px;
                 border-radius: 10px;
-                border: 1px solid #1e1e1e;
+                border: 1.5px solid #ccc;
                 font-size: 13px;
-                color: #ffffff;
-                min-width: 120px;
+                color: #111;
+                min-width: 150px;
             }
-            QComboBox:focus { border: 1.5px solid #cc1e1e; }
+            QComboBox:focus {
+                border: 1.5px solid #e50914;
+            }
             QComboBox QAbstractItemView {
-                background-color: #0e0e0e;
-                border: 2px solid #cc1e1e;
+                background-color: white;
+                border: 2px solid #e50914;
                 border-radius: 8px;
-                selection-background-color: #cc1e1e;
+                selection-background-color: #e50914;
                 selection-color: white;
                 padding: 5px;
                 font-size: 13px;
                 outline: none;
             }
             QComboBox QAbstractItemView::item {
-                background-color: #0e0e0e; color: #aaaaaa;
-                padding: 8px 12px; margin: 1px; border-radius: 5px;
+                background-color: white;
+                color: #333;
+                padding: 8px 12px;
+                margin: 1px;
+                border-radius: 5px;
             }
-            QComboBox QAbstractItemView::item:hover { background-color: #1a1a1a; color: #ffffff; }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #f8f9fa;
+                color: #e50914;
+            }
             QComboBox QAbstractItemView::item:selected {
-                background-color: #cc1e1e; color: white; font-weight: bold;
+                background-color: #e50914;
+                color: white;
+                font-weight: bold;
             }
-        """
-        self.status_filter = QComboBox()
-        self.status_filter.addItems(["Todos", "PENDENTE", "PAGO"])
-        self.status_filter.setStyleSheet(_combo_style)
+        """)
         self.status_filter.currentTextChanged.connect(self.filtrar_dados)
-        top_row.addWidget(self.status_filter)
-
-        layout.addLayout(top_row)
+        filter_layout.addWidget(self.status_filter)
+        
+        filter_layout.addStretch()
+        layout.addLayout(filter_layout)
 
         # Widget de abas para meses
         self.tab_widget = QTabWidget()
@@ -103,7 +118,7 @@ class FinanceiroTab(BaseTab):
                 border: none;
             }
             QTabWidget::tab-bar {
-                alignment: left;
+                alignment: center;
             }
             QTabBar {
                 qproperty-drawBase: 0;
@@ -111,49 +126,51 @@ class FinanceiroTab(BaseTab):
                 qproperty-expanding: false;
             }
             QTabBar::tab {
-                background: #161616;
-                color: #444444;
-                padding: 3px 10px;
-                margin-right: 4px;
-                border-radius: 5px;
-                font-weight: 500;
-                font-size: 11px;
-                min-width: 36px;
-                max-width: 60px;
-                border: 1px solid #1e1e1e;
+                background: rgba(255,255,255,0.1);
+                color: white;
+                padding: 8px 10px;
+                margin-right: 1px;
+                border-radius: 6px 6px 0px 0px;
+                font-weight: bold;
+                font-size: 10px;
+                min-width: 40px;
+                max-width: 65px;
+                border: 2px solid transparent;
             }
             QTabBar::tab:hover:!selected {
-                background: #1e1e1e;
-                color: #888888;
-                border: 1px solid #2a2a2a;
-            }
-            QTabBar::tab:selected {
-                background: #cc1e1e;
-                color: #ffffff;
-                border: none;
-                font-weight: 600;
+                background: rgba(255,255,255,0.2);
+                border: 2px solid rgba(255,255,255,0.3);
             }
             QTabBar::tab:pressed {
-                background: #a01515;
-                color: #ffffff;
-                border: none;
+                background-color: rgba(229,9,20,0.6) !important;
+                color: white !important;
+                border: 2px solid rgba(229,9,20,0.8) !important;
+            }
+            QTabBar::tab:selected {
+                background-color: rgba(229,9,20,0.8) !important;
+                color: white !important;
+                border: 2px solid rgba(229,9,20,1.0) !important;
+            }
+            QTabBar::tab:focus {
+                outline: none;
+                background-color: rgba(229,9,20,0.7);
             }
             QTabBar::scroller {
-                width: 22px;
-                background: #161616;
+                width: 25px;
+                background: rgba(255,255,255,0.1);
                 border-radius: 4px;
             }
             QTabBar QToolButton {
-                background: #cc1e1e;
+                background: rgba(229,9,20,0.8);
                 color: white;
                 border-radius: 3px;
                 margin: 1px;
                 font-weight: bold;
-                width: 18px;
-                height: 18px;
+                width: 20px;
+                height: 20px;
             }
             QTabBar QToolButton:hover {
-                background: #e02020;
+                background: rgba(229,9,20,1.0);
             }
             QTabBar QToolButton::left-arrow {
                 image: none;
@@ -176,35 +193,65 @@ class FinanceiroTab(BaseTab):
         layout.addWidget(self.tab_widget)
         
         
-        # ── RODAPÉ: botões de ação ──
+        # Rodapé com botões de ação
         footer_widget = QWidget()
-        footer_widget.setObjectName("financeiroFooter")
-        footer_widget.setStyleSheet("#financeiroFooter { background: transparent; }")
         footer_layout = QHBoxLayout(footer_widget)
-        footer_layout.setContentsMargins(0, 8, 0, 0)
-        footer_layout.setSpacing(10)
-
-        _btn_disabled = """
-            QPushButton:disabled {
-                background: #1a1a1a; color: #333333; border: 1px solid #222222;
+        footer_layout.setContentsMargins(20, 10, 20, 10)
+        footer_layout.setSpacing(15)
+        
+        # Botão Pagar
+        self.btn_pagar = QPushButton("💰 Pagar")
+        self.btn_pagar.setStyleSheet("""
+            QPushButton {
+                background: rgba(40,167,69,0.9);
+                color: white;
+                padding: 12px 25px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+                border: none;
+                min-width: 120px;
             }
-        """
-        self.btn_editar = QPushButton("Editar")
-        self.btn_editar.setFixedHeight(34)
+            QPushButton:hover {
+                background: rgba(40,167,69,1);
+            }
+            QPushButton:disabled {
+                background: rgba(108,117,125,0.5);
+                color: rgba(255,255,255,0.5);
+            }
+        """)
+        self.btn_pagar.clicked.connect(self.pagar_mensalidade)
+        self.btn_pagar.setEnabled(False)
+        
+        # Botão Editar
+        self.btn_editar = QPushButton("✏️ Editar")
         self.btn_editar.setStyleSheet("""
             QPushButton {
-                background: #1e1e1e; color: #888888;
-                border: 1px solid #2a2a2a; border-radius: 7px;
-                font-size: 12px; font-weight: 500; padding: 0 16px;
+                background: rgba(229,9,20,0.9);
+                color: white;
+                padding: 12px 25px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+                border: none;
+                min-width: 120px;
             }
-            QPushButton:hover { background: #252525; color: #cccccc; }
-        """ + _btn_disabled)
+            QPushButton:hover {
+                background: rgba(229,9,20,1);
+            }
+            QPushButton:disabled {
+                background: rgba(108,117,125,0.5);
+                color: rgba(255,255,255,0.5);
+            }
+        """)
         self.btn_editar.clicked.connect(self.editar_mensalidade)
         self.btn_editar.setEnabled(False)
-
+        
         footer_layout.addStretch()
+        footer_layout.addWidget(self.btn_pagar)
         footer_layout.addWidget(self.btn_editar)
-
+        footer_layout.addStretch()
+        
         layout.addWidget(footer_widget)
 
     def get_valor_por_plano(self, plano):
@@ -226,133 +273,230 @@ class FinanceiroTab(BaseTab):
         return 180.0  # fallback
 
     def create_mensalidade_card(self, dados):
-        """Cria um card de mensalidade com layout 3 colunas."""
-        from datetime import datetime, date as date_type
+        """Cria um card para uma mensalidade com tamanho responsivo"""
         card = QFrame()
-        card.setObjectName("mensalidadeCard")
+        card.setFixedHeight(180)  # Voltando para altura original
+        card.setMaximumWidth(600)  # Largura ajustada para alinhar com botões
+        # Removido hover para não conflitar com seleção
         card.setStyleSheet("""
-            QFrame#mensalidadeCard {
-                background: #161616;
-                border: 1px solid #1e1e1e;
-                border-radius: 9px;
+            QFrame {
+                background: transparent;
+                border-radius: 12px;
+                border: 1px solid rgba(255,255,255,0.3);
+                margin: 5px;
             }
         """)
-
+        
         layout = QHBoxLayout(card)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
-
-        nome_aluno = dados[1] if dados[1] else "?"
-
-        # ── Col 1: name, plan, amount, dates (flex 1) ──
-        info = QVBoxLayout()
-        info.setSpacing(0)
-        info.setContentsMargins(0, 0, 0, 0)
-
-        lbl_nome = QLabel(nome_aluno)
-        lbl_nome.setStyleSheet(
-            "font-size: 12px; font-weight: 500; color: #cccccc; background: transparent; margin-bottom: 3px;"
-        )
-        info.addWidget(lbl_nome)
-
-        plano = dados[8] if len(dados) > 8 else ""
-        if plano:
-            lbl_plano = QLabel(plano)
-            lbl_plano.setStyleSheet(
-                "font-size: 10px; color: #333333; background: transparent; margin-bottom: 5px;"
-            )
-            info.addWidget(lbl_plano)
-
+        layout.setContentsMargins(20, 15, 20, 15)  # Voltando aos valores originais
+        layout.setSpacing(20)  # Voltando ao espaçamento original
+        
+        # Lado esquerdo - Foto e informações principais
+        left_layout = QVBoxLayout()
+        left_layout.setSpacing(10)  # Voltando ao espaçamento original
+        
+        # Container para foto e nome
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(15)  # Voltando ao espaçamento original
+        
+        # Foto do aluno - Tamanho original
+        foto_label = QLabel()
+        foto_label.setFixedSize(70, 70)  # Voltando ao tamanho original
+        foto_label.setStyleSheet("""
+            QLabel {
+                background: rgba(255,255,255,0.9);
+                border-radius: 8px;
+                border: 1px solid rgba(255,255,255,0.5);
+            }
+        """)
+        foto_label.setAlignment(Qt.AlignCenter)
+        foto_label.setScaledContents(True)
+        
+        # Carregar foto do aluno (dados[7] = foto_path)
+        if len(dados) > 7 and dados[7]:
+            foto_path = dados[7]
+            if os.path.exists(foto_path):
+                from PySide6.QtGui import QPixmap
+                pixmap = QPixmap(foto_path)
+                foto_label.setPixmap(pixmap.scaled(70, 70, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            else:
+                foto_label.setText("👤")
+                foto_label.setStyleSheet(foto_label.styleSheet() + "font-size: 28px;")
+        else:
+            foto_label.setText("👤")
+            foto_label.setStyleSheet(foto_label.styleSheet() + "font-size: 28px;")
+        
+        header_layout.addWidget(foto_label)
+        
+        # Container para nome e valor
+        info_layout = QVBoxLayout()
+        info_layout.setSpacing(8)  # Voltando ao valor original
+        
+        # Nome do aluno (dados[1] = nome)
+        nome_aluno = dados[1] if dados[1] else "Nome não encontrado"
+        nome_label = QLabel(nome_aluno)
+        nome_label.setStyleSheet("""
+            QLabel {
+                background: rgba(255,255,255,0.9);
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 14px;
+                font-weight: bold;
+                color: #333;
+                border: 1px solid rgba(255,255,255,0.7);
+            }
+        """)
+        info_layout.addWidget(nome_label)
+        
+        # Valor baseado no plano do aluno (dados[8] = plano)
+        plano = dados[8] if len(dados) > 8 else None
         valor_plano = self.get_valor_por_plano(plano)
-        lbl_valor = QLabel(f"R$ {valor_plano:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-        lbl_valor.setStyleSheet(
-            "font-size: 15px; font-weight: 700; color: #ffffff; background: transparent;"
-        )
-        info.addWidget(lbl_valor)
-
+        valor_label = QLabel(f"💰 R$ {valor_plano:.2f}")
+        valor_label.setStyleSheet("""
+            QLabel {
+                background: rgba(255,255,255,0.9);
+                border-radius: 8px;
+                padding: 6px 10px;
+                font-size: 12px;
+                font-weight: bold;
+                color: #28a745;
+                border: 1px solid rgba(255,255,255,0.5);
+                max-width: 120px;
+            }
+        """)
+        info_layout.addWidget(valor_label)
+        
+        # Mostrar plano do aluno
+        if plano:
+            plano_label = QLabel(f"🏆 {plano}")
+            plano_label.setStyleSheet("""
+                QLabel {
+                    background: rgba(255,255,255,0.7);
+                    border-radius: 6px;
+                    padding: 4px 8px;
+                    font-size: 10px;
+                    color: #666;
+                    border: 1px solid rgba(255,255,255,0.4);
+                    max-width: 200px;
+                    min-width: 150px;
+                }
+            """)
+            info_layout.addWidget(plano_label)
+        
+        header_layout.addLayout(info_layout)
+        left_layout.addLayout(header_layout)
+        left_layout.addStretch()
+        
+        # Lado direito - Datas e Status
+        right_layout = QVBoxLayout()
+        right_layout.setSpacing(10)  # Aumentando espaçamento vertical
+        
+        # Vencimento
         venc_text = "Não definido"
         if dados[3]:
             try:
+                from datetime import datetime
                 dt = datetime.strptime(dados[3], "%Y-%m-%d")
                 venc_text = dt.strftime("%d/%m/%Y")
-            except Exception:
+            except:
                 venc_text = dados[3]
-
+        
+        venc_label = QLabel(f"📅 Vence: {venc_text}")
+        venc_label.setStyleSheet("""
+            QLabel {
+                background: rgba(255,255,255,0.8);
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-size: 11px;
+                color: #666;
+                border: 1px solid rgba(255,255,255,0.4);
+            }
+        """)
+        right_layout.addWidget(venc_label)
+        
+        # Pagamento/Status de Atraso
         status = dados[5] or "PENDENTE"
-        pg_text = ""
+        
         if status == "PAGO" and dados[4]:
+            # Se pago, mostrar data do pagamento
             try:
+                from datetime import datetime
                 dt = datetime.strptime(dados[4], "%Y-%m-%d")
-                pg_text = f" · Pago: {dt.strftime('%d/%m/%Y')}"
-            except Exception:
-                pg_text = f" · Pago: {dados[4]}"
-
-        date_color = "#2d8a52" if status == "PAGO" else "#333333"
-        lbl_dates = QLabel(f"Vence: {venc_text}{pg_text}")
-        lbl_dates.setStyleSheet(
-            f"font-size: 10px; color: {date_color}; background: transparent; margin-top: 3px;"
-        )
-        info.addWidget(lbl_dates)
-        layout.addLayout(info, 1)
-
-        # ── Col 3: status badge + Registrar button ──
-        right = QVBoxLayout()
-        right.setSpacing(5)
-        right.setContentsMargins(0, 0, 0, 0)
-
-        from datetime import date as _date
-        if status == "PAGO":
-            status_lbl = QLabel("Pago")
-            status_lbl.setStyleSheet(
-                "background: rgba(26,122,60,0.12); color: #2d8a52;"
-                " font-size: 10px; padding: 2px 7px; border-radius: 4px;"
-            )
-            is_atrasado = False
+                pag_text = f"✅ Pago: {dt.strftime('%d/%m/%Y')}"
+                pag_color = "#28a745"  # Verde para pago
+            except:
+                pag_text = f"✅ Pago: {dados[4]}"
+                pag_color = "#28a745"
         else:
+            # Se pendente, calcular dias de atraso
             try:
-                venc_date = datetime.strptime(dados[3], "%Y-%m-%d").date()
-                is_atrasado = venc_date < _date.today()
-            except Exception:
-                is_atrasado = True
-
-            if is_atrasado:
-                status_lbl = QLabel("Atrasado")
-                status_lbl.setStyleSheet(
-                    "background: rgba(204,30,30,0.12); color: #c04444;"
-                    " font-size: 10px; padding: 2px 7px; border-radius: 4px;"
-                )
-            else:
-                status_lbl = QLabel("A Vencer")
-                status_lbl.setStyleSheet(
-                    "background: rgba(184,124,14,0.12); color: #b87c0e;"
-                    " font-size: 10px; padding: 2px 7px; border-radius: 4px;"
-                )
-        right.addWidget(status_lbl, 0, Qt.AlignRight)
-
-        if status != "PAGO" and is_atrasado:
-            btn_reg = QPushButton("Registrar Pgto")
-            btn_reg.setFixedHeight(28)
-            btn_reg.setStyleSheet("""
-                QPushButton {
-                    background: #cc1e1e; color: #ffffff; border: none;
-                    padding: 4px 12px; border-radius: 5px; font-size: 11px; font-weight: 600;
-                }
-                QPushButton:hover { background: #e02020; }
-                QPushButton:pressed { background: #a01515; }
-            """)
-            btn_reg.clicked.connect(lambda: self._registrar_pagamento_card(dados))
-            right.addWidget(btn_reg, 0, Qt.AlignRight)
-
-        right.addStretch()
-        layout.addLayout(right)
-
+                from datetime import datetime, date
+                if dados[3]:  # data_vencimento
+                    venc_date = datetime.strptime(dados[3], "%Y-%m-%d").date()
+                    today = date.today()
+                    if venc_date < today:
+                        dias_atraso = (today - venc_date).days
+                        pag_text = f"⚠️ Em atraso há {dias_atraso} dia{'s' if dias_atraso > 1 else ''}"
+                        pag_color = "#dc3545"  # Vermelho para atraso
+                    else:
+                        pag_text = "🟡 Pendente"
+                        pag_color = "#ffc107"  # Amarelo para pendente sem atraso
+                else:
+                    pag_text = "🟡 Pendente"
+                    pag_color = "#ffc107"
+            except:
+                pag_text = "🟡 Pendente"
+                pag_color = "#ffc107"
+        
+        pag_label = QLabel(pag_text)
+        pag_label.setStyleSheet(f"""
+            QLabel {{
+                background: rgba(255,255,255,0.8);
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-size: 11px;
+                color: {pag_color};
+                font-weight: bold;
+                border: 1px solid rgba(255,255,255,0.4);
+            }}
+        """)
+        right_layout.addWidget(pag_label)
+        
+        right_layout.addStretch()
+        
+        # Status e Botão de ação
+        status_layout = QHBoxLayout()
+        
+        # Status com estilo igual ao das faixas/graus do cadastro
+        status = dados[5] or "PENDENTE"
+        
+        status_label = QLabel(status)
+        status_label.setStyleSheet("""
+            QLabel {
+                background-color: rgba(255,255,255,0.95);
+                padding: 7px 10px;
+                border-radius: 10px;
+                border: 1.5px solid #ccc;
+                font-size: 13px;
+                color: #111;
+                font-weight: bold;
+                min-width: 80px;
+            }
+        """)
+        status_label.setAlignment(Qt.AlignCenter)
+        status_layout.addWidget(status_label)
+        
+        status_layout.addStretch()
+        right_layout.addLayout(status_layout)
+        
+        # Adicionar layouts ao card
+        layout.addLayout(left_layout, 2)
+        layout.addLayout(right_layout, 1)
+        
+        # Sistema de seleção do card
         self.adicionar_selecao_card(card, dados)
+        
         return card
-
-    def _registrar_pagamento_card(self, dados):
-        """Marca a mensalidade como paga diretamente do botão Registrar no card."""
-        mensalidade_id = dados[0]
-        self.marcar_pago(mensalidade_id)
 
     def load(self):
         """Carrega os dados das mensalidades"""
@@ -391,19 +535,23 @@ class FinanceiroTab(BaseTab):
         card.selecionado = False
         card.dados_mensalidade = dados
         
+        # Estilo original do card SEM hover para evitar conflitos
         estilo_original = """
-            QFrame#mensalidadeCard {
-                background: #161616;
-                border-radius: 9px;
-                border: 1px solid #1e1e1e;
+            QFrame {
+                background: rgba(255,255,255,0.1);
+                border-radius: 12px;
+                border: 1px solid rgba(255,255,255,0.3);
+                margin: 5px;
             }
         """
-
+        
+        # Estilo selecionado com !important para sobrepor hover
         estilo_selecionado = """
-            QFrame#mensalidadeCard {
-                background: rgba(204,30,30,0.08);
-                border-radius: 9px;
-                border: 2px solid #cc1e1e;
+            QFrame {
+                background: rgba(229,9,20,0.1) !important;
+                border-radius: 12px !important;
+                border: 3px solid #e50914 !important;
+                margin: 5px !important;
             }
         """
         
@@ -468,6 +616,8 @@ class FinanceiroTab(BaseTab):
         self.toggle_botoes(False)
     
     def toggle_botoes(self, enabled):
+        """Ativa/desativa botões baseado na seleção"""
+        self.btn_pagar.setEnabled(enabled)
         self.btn_editar.setEnabled(enabled)
         
 
@@ -682,9 +832,42 @@ class FinanceiroTab(BaseTab):
             scroll_area.setWidgetResizable(True)
             scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-            scroll_area.setStyleSheet(
-                f"QScrollArea {{ border: none; background: transparent; }} {SCROLLBAR_STYLE}"
-            )
+            scroll_area.setStyleSheet("""
+                QScrollArea {
+                    border: none;
+                    background: transparent;
+                }
+                QScrollBar:vertical {
+                    background-color: rgba(0,0,0,0.2);
+                    width: 8px;
+                    border-radius: 4px;
+                }
+                QScrollBar::handle:vertical {
+                    background-color: rgba(229,9,20,0.7);
+                    border-radius: 4px;
+                    min-height: 20px;
+                }
+                QScrollBar::handle:vertical:hover {
+                    background-color: rgba(229,9,20,0.9);
+                }
+                QScrollBar:horizontal {
+                    background-color: rgba(0,0,0,0.2);
+                    height: 8px;
+                    border-radius: 4px;
+                }
+                QScrollBar::handle:horizontal {
+                    background-color: rgba(229,9,20,0.7);
+                    border-radius: 4px;
+                    min-width: 20px;
+                }
+                QScrollBar::handle:horizontal:hover {
+                    background-color: rgba(229,9,20,0.9);
+                }
+                QScrollBar::add-line, QScrollBar::sub-line {
+                    border: none;
+                    background: none;
+                }
+            """)
             
             # Widget de conteúdo para cada mês - Melhor centralização
             content_widget = QWidget()
@@ -755,11 +938,16 @@ class FinanceiroTab(BaseTab):
                     layout.addWidget(card)
             else:
                 # Mostrar mensagem quando não há mensalidades
-                label = QLabel("Nenhuma mensalidade encontrada para este mês.")
-                label.setObjectName("emptyLabel")
-                label.setStyleSheet(
-                    "#emptyLabel { color: #333333; font-size: 13px; background: transparent; border: none; }"
-                )
+                label = QLabel(f"Nenhuma mensalidade encontrada para este mês")
+                label.setStyleSheet("""
+                    QLabel {
+                        color: #666;
+                        font-size: 14px;
+                        padding: 20px;
+                        text-align: center;
+                        font-style: italic;
+                    }
+                """)
                 label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 layout.addWidget(label)
                 
@@ -777,66 +965,83 @@ class FinanceiroDialog(QDialog):
         self.setupBaseUI()
     
     def setupBaseUI(self):
-        self.setObjectName("financeiroDialog")
-        self.setStyleSheet("#financeiroDialog { background: #111111; }")
-
+        self.setStyleSheet("QDialog { background-color: #1e1e1e; }")
+        
         main = QVBoxLayout(self)
-        main.setContentsMargins(20, 20, 20, 20)
-        main.setSpacing(16)
-
+        main.setAlignment(Qt.AlignCenter)
+        
         # Card principal
         self.card = QFrame()
-        self.card.setObjectName("financeiroCard")
-        self.card.setStyleSheet(
-            "#financeiroCard { background: #161616; border-radius: 10px; border: 1px solid #222222; }"
-        )
-
+        self.card.setStyleSheet("background:white;border-radius:18px;")
+        
         self.card_layout = QVBoxLayout(self.card)
-        self.card_layout.setContentsMargins(24, 20, 24, 20)
-        self.card_layout.setSpacing(14)
-
+        self.card_layout.setContentsMargins(25, 25, 25, 25)
+        self.card_layout.setSpacing(16)
+        
+        # Logo
+        logo = QLabel()
+        logo_path = os.path.join(os.path.dirname(__file__), "..", "assets", "logo.png")
+        logo_path = os.path.abspath(logo_path)
+        
+        if os.path.exists(logo_path):
+            pix = QPixmap(logo_path).scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo.setPixmap(pix)
+        
+        logo.setAlignment(Qt.AlignCenter)
+        self.card_layout.addWidget(logo)
+        
         # Container para conteúdo personalizado
         self.content_widget = QWidget()
-        self.content_widget.setStyleSheet("background: transparent;")
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(0, 0, 0, 0)
         self.card_layout.addWidget(self.content_widget)
-
+        
         # Container para botões
         self.button_widget = QWidget()
-        self.button_widget.setStyleSheet("background: transparent;")
         self.button_layout = QHBoxLayout(self.button_widget)
-        self.button_layout.setSpacing(10)
+        self.button_layout.setSpacing(12)
         self.button_layout.setAlignment(Qt.AlignCenter)
         self.card_layout.addWidget(self.button_widget)
-
+        
         main.addWidget(self.card)
     
     def add_button(self, text, callback, is_primary=True):
+        """Adiciona botão com estilo do projeto"""
         btn = QPushButton(text)
-        btn.setFixedHeight(38)
+        btn.setFixedHeight(45)
         btn.setCursor(Qt.PointingHandCursor)
-
+        
         if is_primary:
             btn.setStyleSheet("""
                 QPushButton {
-                    background: #cc1e1e; color: #ffffff;
-                    border: none; border-radius: 7px;
-                    font-size: 13px; font-weight: 600; padding: 0 20px;
+                    background-color: #b00020;
+                    color: white;
+                    border-radius: 12px;
+                    font-size: 15px;
+                    font-weight: bold;
+                    padding: 8px 16px;
+                    min-width: 100px;
                 }
-                QPushButton:hover  { background: #e02020; }
-                QPushButton:pressed{ background: #a01515; }
+                QPushButton:hover {
+                    background-color: #8c001a;
+                }
             """)
         else:
             btn.setStyleSheet("""
                 QPushButton {
-                    background: #1e1e1e; color: #888888;
-                    border: 1px solid #2a2a2a; border-radius: 7px;
-                    font-size: 13px; font-weight: 500; padding: 0 20px;
+                    background-color: #666;
+                    color: white;
+                    border-radius: 12px;
+                    font-size: 15px;
+                    font-weight: bold;
+                    padding: 8px 16px;
+                    min-width: 100px;
                 }
-                QPushButton:hover { background: #252525; color: #cccccc; }
+                QPushButton:hover {
+                    background-color: #555;
+                }
             """)
-
+        
         btn.clicked.connect(callback)
         self.button_layout.addWidget(btn)
         return btn
@@ -844,86 +1049,84 @@ class FinanceiroDialog(QDialog):
 
 class NovaMensalidadeDialog(FinanceiroDialog):
     def __init__(self, parent):
-        super().__init__("Nova Mensalidade", parent)
-        self.setFixedSize(500, 580)
+        super().__init__("💰 Nova Mensalidade", parent)
+        self.setFixedSize(500, 600)
         self.build_ui()
 
     def build_ui(self):
-        title = QLabel("Nova Mensalidade")
-        title.setStyleSheet(
-            "color:#ffffff; font-size:16px; font-weight:700;"
-            " background:transparent; border:none; margin-bottom:8px;"
-        )
+        # Título
+        title = QLabel("Criar Nova Mensalidade")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #333; margin-bottom: 20px;")
         self.content_layout.addWidget(title)
-
-        _label_style = "color:#888888; font-size:12px; font-weight:500; background:transparent; border:none;"
-        _field_style = """
+        
+        # Formulário
+        form_widget = QWidget()
+        form_layout = QFormLayout(form_widget)
+        form_layout.setSpacing(15)
+        
+        # Estilo dos campos
+        field_style = """
             QComboBox, QLineEdit, QDateEdit, QTextEdit {
-                background-color: #0e0e0e; padding: 8px 10px;
-                border-radius: 8px; border: 1px solid #1e1e1e;
-                font-size: 13px; color: #cccccc;
+                padding: 10px;
+                font-size: 14px;
+                border: 2px solid #ddd;
+                border-radius: 8px;
+                background-color: #f9f9f9;
             }
             QComboBox:focus, QLineEdit:focus, QDateEdit:focus, QTextEdit:focus {
-                border: 1.5px solid #cc1e1e;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #0e0e0e; border: 2px solid #cc1e1e;
-                border-radius: 8px; selection-background-color: #cc1e1e;
-                selection-color: white; padding: 5px; font-size: 13px;
-            }
-            QComboBox QAbstractItemView::item {
-                background-color: #0e0e0e; color: #aaaaaa;
-                padding: 8px 12px; margin: 1px; border-radius: 5px;
-            }
-            QComboBox QAbstractItemView::item:hover { background-color: #1a1a1a; color: #ffffff; }
-            QComboBox QAbstractItemView::item:selected {
-                background-color: #cc1e1e; color: white; font-weight: bold;
+                border-color: #b00020;
+                background-color: white;
             }
         """
-
-        form_widget = QWidget()
-        form_widget.setStyleSheet("background: transparent;")
-        form_layout = QFormLayout(form_widget)
-        form_layout.setSpacing(12)
-
+        
+        # Aluno
         self.combo_aluno = QComboBox()
-        self.combo_aluno.setStyleSheet(_field_style)
+        self.combo_aluno.setStyleSheet(field_style)
         try:
             alunos = listar_alunos()
             for aluno in alunos:
-                self.combo_aluno.addItem(f"{aluno[1]} (ID: {aluno[0]})", aluno[0])
-        except Exception:
+                self.combo_aluno.addItem(f"👤 {aluno[1]} (ID: {aluno[0]})", aluno[0])
+        except:
             pass
-        label_aluno = QLabel("Aluno:")
-        label_aluno.setStyleSheet(_label_style)
+        
+        label_aluno = QLabel("Selecione o Aluno:")
+        label_aluno.setStyleSheet("font-weight: bold; color: #333;")
         form_layout.addRow(label_aluno, self.combo_aluno)
 
+        # Valor
         self.valor_input = QLineEdit()
         self.valor_input.setPlaceholderText("Ex: 180.00")
-        self.valor_input.setStyleSheet(_field_style)
+        self.valor_input.setStyleSheet(field_style)
+        
         label_valor = QLabel("Valor (R$):")
-        label_valor.setStyleSheet(_label_style)
+        label_valor.setStyleSheet("font-weight: bold; color: #333;")
         form_layout.addRow(label_valor, self.valor_input)
 
+        # Data de vencimento
         self.data_venc = QDateEdit()
         self.data_venc.setDate(QDate.currentDate())
-        self.data_venc.setStyleSheet(_field_style)
+        self.data_venc.setStyleSheet(field_style)
+        
         label_data = QLabel("Data de Vencimento:")
-        label_data.setStyleSheet(_label_style)
+        label_data.setStyleSheet("font-weight: bold; color: #333;")
         form_layout.addRow(label_data, self.data_venc)
 
+        # Observações
         self.obs_input = QTextEdit()
-        self.obs_input.setMaximumHeight(70)
+        self.obs_input.setMaximumHeight(80)
         self.obs_input.setPlaceholderText("Observações adicionais (opcional)...")
-        self.obs_input.setStyleSheet(_field_style)
+        self.obs_input.setStyleSheet(field_style)
+        
         label_obs = QLabel("Observações:")
-        label_obs.setStyleSheet(_label_style)
+        label_obs.setStyleSheet("font-weight: bold; color: #333;")
         form_layout.addRow(label_obs, self.obs_input)
-
+        
         self.content_layout.addWidget(form_widget)
-
+        
+        # Botões
         self.add_button("Cancelar", self.reject, False)
-        self.add_button("Criar Mensalidade", self.criar_mensalidade, True)
+        self.add_button("💰 Criar Mensalidade", self.criar_mensalidade, True)
 
     def criar_mensalidade(self):
         """Cria nova mensalidade"""
@@ -945,119 +1148,158 @@ class NovaMensalidadeDialog(FinanceiroDialog):
 
 class EditarMensalidadeDialog(FinanceiroDialog):
     def __init__(self, parent, dados):
-        super().__init__("Editar Mensalidade", parent)
+        super().__init__("✏️ Editar Mensalidade", parent)
         self.dados = dados
-        self.setFixedSize(500, 680)
+        self.setFixedSize(500, 700)
         self.build_ui()
         self.preencher_campos()
 
     def build_ui(self):
+        # Título
         title = QLabel("Editar Mensalidade")
-        title.setStyleSheet(
-            "color:#ffffff; font-size:16px; font-weight:700;"
-            " background:transparent; border:none; margin-bottom:4px;"
-        )
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #333; margin-bottom: 20px;")
         self.content_layout.addWidget(title)
-
-        info_aluno = QLabel(f"Aluno: {self.dados[8]}")
-        info_aluno.setObjectName("editInfoAluno")
-        info_aluno.setStyleSheet(
-            "#editInfoAluno {"
-            " background: rgba(204,30,30,0.08); color: #cccccc;"
-            " padding: 10px 12px; border-radius: 7px; font-size:12px;"
-            " border: 1px solid rgba(204,30,30,0.2);"
-            "}"
-        )
+        
+        # Info do aluno (read-only)
+        info_aluno = QLabel(f"📝 Aluno: {self.dados[8]}")  # Nome do aluno (índice 8: m.* tem 8 colunas 0-7)
+        info_aluno.setStyleSheet("""
+            QLabel {
+                background: rgba(229,9,20,0.1);
+                color: #333;
+                padding: 12px;
+                border-radius: 8px;
+                font-weight: bold;
+                border: 2px solid rgba(229,9,20,0.3);
+            }
+        """)
         self.content_layout.addWidget(info_aluno)
-
-        _label_style = "color:#888888; font-size:12px; font-weight:500; background:transparent; border:none;"
-        _field_style = """
+        
+        # Formulário
+        form_widget = QWidget()
+        form_layout = QFormLayout(form_widget)
+        form_layout.setSpacing(15)
+        
+        # Estilo dos campos (cor preta como no resto do projeto)
+        field_style = """
             QComboBox, QLineEdit, QDateEdit, QTextEdit {
-                background-color: #0e0e0e; padding: 8px 10px;
-                border-radius: 8px; border: 1px solid #1e1e1e;
-                font-size: 13px; color: #cccccc;
+                background-color: rgba(255,255,255,0.95);
+                padding: 7px 10px;
+                border-radius: 10px;
+                border: 1.5px solid #ccc;
+                font-size: 13px;
+                color: #111;
             }
             QComboBox:focus, QLineEdit:focus, QDateEdit:focus, QTextEdit:focus {
-                border: 1.5px solid #cc1e1e;
+                border: 1.5px solid #e50914;
             }
             QComboBox QAbstractItemView {
-                background-color: #0e0e0e; border: 2px solid #cc1e1e;
-                border-radius: 8px; selection-background-color: #cc1e1e;
-                selection-color: white; padding: 5px; font-size: 13px; outline: none;
+                background-color: white;
+                border: 2px solid #e50914;
+                border-radius: 8px;
+                selection-background-color: #e50914;
+                selection-color: white;
+                padding: 5px;
+                font-size: 13px;
+                outline: none;
             }
             QComboBox QAbstractItemView::item {
-                background-color: #0e0e0e; color: #aaaaaa;
-                padding: 8px 12px; margin: 1px; border-radius: 5px;
+                background-color: white;
+                color: #333;
+                padding: 8px 12px;
+                margin: 1px;
+                border-radius: 5px;
             }
-            QComboBox QAbstractItemView::item:hover { background-color: #1a1a1a; color: #ffffff; }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #f8f9fa;
+                color: #e50914;
+            }
             QComboBox QAbstractItemView::item:selected {
-                background-color: #cc1e1e; color: white; font-weight: bold;
+                background-color: #e50914;
+                color: white;
+                font-weight: bold;
             }
         """
 
-        form_widget = QWidget()
-        form_widget.setStyleSheet("background: transparent;")
-        form_layout = QFormLayout(form_widget)
-        form_layout.setSpacing(12)
-
+        # Plano
         self.plano_combo = QComboBox()
         self.plano_combo.setEditable(True)
         self.carregar_planos()
-        self.plano_combo.setStyleSheet(_field_style)
+        self.plano_combo.setStyleSheet(field_style)
+        
         label_plano = QLabel("Plano:")
-        label_plano.setStyleSheet(_label_style)
+        label_plano.setStyleSheet("font-weight: bold; color: #333;")
         form_layout.addRow(label_plano, self.plano_combo)
 
+        # Valor
         self.valor_input = QLineEdit()
         self.valor_input.setPlaceholderText("Digite o valor da mensalidade")
-        self.valor_input.setStyleSheet(_field_style)
+        self.valor_input.setStyleSheet(field_style)
+        
         label_valor = QLabel("Valor (R$):")
-        label_valor.setStyleSheet(_label_style)
+        label_valor.setStyleSheet("font-weight: bold; color: #333;")
         form_layout.addRow(label_valor, self.valor_input)
 
+        # Data de vencimento
         self.data_venc = QDateEdit()
         self.data_venc.setCalendarPopup(True)
         self.data_venc.setDisplayFormat("dd/MM/yyyy")
-        self.data_venc.setStyleSheet(_field_style)
+        self.data_venc.setStyleSheet(field_style)
+        
         label_data = QLabel("Data de Vencimento:")
-        label_data.setStyleSheet(_label_style)
+        label_data.setStyleSheet("font-weight: bold; color: #333;")
         form_layout.addRow(label_data, self.data_venc)
 
+        # Status
         self.status_combo = QComboBox()
         self.status_combo.addItems(["PENDENTE", "PAGO", "VENCIDO"])
-        self.status_combo.setStyleSheet(_field_style)
+        self.status_combo.setStyleSheet(field_style)
+        
         label_status = QLabel("Status:")
-        label_status.setStyleSheet(_label_style)
+        label_status.setStyleSheet("font-weight: bold; color: #333;")
         form_layout.addRow(label_status, self.status_combo)
 
+        # Observações
         self.obs_input = QTextEdit()
-        self.obs_input.setMaximumHeight(70)
-        self.obs_input.setPlaceholderText("Observações (opcional)")
-        self.obs_input.setStyleSheet(_field_style)
+        self.obs_input.setMaximumHeight(80)
+        self.obs_input.setPlaceholderText("Digite observações sobre esta mensalidade (opcional)")
+        self.obs_input.setStyleSheet(field_style)
+        
         label_obs = QLabel("Observações:")
-        label_obs.setStyleSheet(_label_style)
+        label_obs.setStyleSheet("font-weight: bold; color: #333;")
         form_layout.addRow(label_obs, self.obs_input)
-
+        
         self.content_layout.addWidget(form_widget)
-
+        
+        # Área de botões adicionais
+        buttons_area = QHBoxLayout()
+        
+        # Botão Vincular (igual ao do cadastro)
         btn_vincular = QPushButton("Vincular a Responsável")
-        btn_vincular.setFixedHeight(34)
+        btn_vincular.setFixedSize(200, 44)
         btn_vincular.setStyleSheet("""
             QPushButton {
-                background: #1e1e1e; color: #888888;
-                border: 1px solid #2a2a2a; border-radius: 7px;
-                font-size: 12px; font-weight: 500; padding: 0 14px;
+                background-color: #2E86AB;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
             }
-            QPushButton:hover { background: #252525; color: #cccccc; }
+            QPushButton:hover {
+                background-color: #1e5f7a;
+            }
         """)
         btn_vincular.clicked.connect(self.vincular_mensalidade)
-        buttons_area = QHBoxLayout()
+        
         buttons_area.addWidget(btn_vincular)
         buttons_area.addStretch()
+        
         self.content_layout.addLayout(buttons_area)
-
+        
+        # Botões principais
         self.add_button("Cancelar", self.reject, False)
-        self.add_button("Salvar Alterações", self.salvar_alteracoes, True)
+        self.add_button("💾 Salvar Alterações", self.salvar_alteracoes, True)
 
     def carregar_planos(self):
         """Carrega planos do banco de dados"""

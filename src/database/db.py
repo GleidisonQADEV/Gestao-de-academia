@@ -206,13 +206,7 @@ def inserir_aluno(
         foto_path, certificado_path, biometria_data
     ))
 
-    # Obter ID do aluno inserido
     aluno_id = cur.lastrowid
-
-    # Gerar mensalidade automaticamente se o plano não for gratuito
-    # NOTA: Desabilitado para evitar duplicação com criações manuais
-    # A geração deve ser feita via gerar_mensalidades_automaticas()
-    pass
 
     conn.commit()
     conn.close()
@@ -494,23 +488,23 @@ def gerar_mensalidades_automaticas():
                         """, (aluno_id, valor, data_vencimento))
                         mensalidades_criadas += 1
                         print(f"Mensalidade criada para {nome}: R${valor}")
-                except:
-                    pass
-    
+                except Exception as e:
+                    print(f"Erro ao criar mensalidade para {nome}: {e}")
+
     # Processar kids
     cur.execute("SELECT id, nome, plano FROM kids WHERE ativo = 1")
     kids = cur.fetchall()
-    
+
     for kid_id, nome, plano in kids:
         # Verificar se já tem mensalidade no mês atual OU qualquer mensalidade recente
         cur.execute("""
-            SELECT COUNT(*) FROM mensalidades 
+            SELECT COUNT(*) FROM mensalidades
             WHERE aluno_id = ? AND (
                 strftime('%Y-%m', data_vencimento) = ? OR
                 date(data_vencimento) >= date('now', '-30 days')
             )
         """, (-kid_id, data_vencimento.strftime('%Y-%m')))
-        
+
         if cur.fetchone()[0] == 0:  # Não tem mensalidade no mês
             # Extrair valor do plano
             if plano and "R$0" not in plano and "Bolsista" not in plano and "Vinculado ao responsável" not in plano:
@@ -524,8 +518,8 @@ def gerar_mensalidades_automaticas():
                         """, (-kid_id, valor, data_vencimento))
                         mensalidades_criadas += 1
                         print(f"Mensalidade criada para {nome} (Kids): R${valor}")
-                except:
-                    pass
+                except Exception as e:
+                    print(f"Erro ao criar mensalidade para {nome} (Kids): {e}")
     
     conn.commit()
     conn.close()
@@ -568,28 +562,28 @@ def gerar_mensalidades_anuais(ano=None):
                         if match:
                             valor = float(match.group(1))
                             data_vencimento = date(ano, mes, 10)
-                            
+
                             cur.execute("""
                                 INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
                                 VALUES (?, ?, ?, 'PENDENTE', ?)
                             """, (aluno_id, valor, data_vencimento, f'Mensalidade {mes:02d}/{ano} - {plano}'))
                             mensalidades_criadas += 1
-                    except:
-                        pass
-    
+                    except Exception as e:
+                        print(f"Erro ao criar mensalidade anual para aluno {aluno_id} mês {mes}: {e}")
+
     # Processar kids
     cur.execute("SELECT id, nome, plano FROM kids WHERE ativo = 1")
     kids = cur.fetchall()
-    
+
     for kid_id, nome, plano in kids:
         # Gerar mensalidades para todos os 12 meses do ano
         for mes in range(1, 13):
             # Verificar se já tem mensalidade no mês
             cur.execute("""
-                SELECT COUNT(*) FROM mensalidades 
+                SELECT COUNT(*) FROM mensalidades
                 WHERE aluno_id = ? AND strftime('%Y-%m', data_vencimento) = ?
             """, (-kid_id, f"{ano}-{mes:02d}"))
-            
+
             if cur.fetchone()[0] == 0:  # Não tem mensalidade no mês
                 # Extrair valor do plano
                 if plano and "R$0" not in plano and "Bolsista" not in plano and "Vinculado ao responsável" not in plano:
@@ -598,14 +592,14 @@ def gerar_mensalidades_anuais(ano=None):
                         if match:
                             valor = float(match.group(1))
                             data_vencimento = date(ano, mes, 10)
-                            
+
                             cur.execute("""
                                 INSERT INTO mensalidades (aluno_id, valor, data_vencimento, status, observacoes)
                                 VALUES (?, ?, ?, 'PENDENTE', ?)
                             """, (-kid_id, valor, data_vencimento, f'Mensalidade {mes:02d}/{ano} - {plano} (Kids)'))
                             mensalidades_criadas += 1
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"Erro ao criar mensalidade anual para kid {kid_id} mês {mes}: {e}")
     
     conn.commit()
     conn.close()
@@ -712,6 +706,37 @@ def obter_metricas_dashboard():
     
     conn.close()
     return metricas
+
+
+def obter_status_pagamento_mes(ano=None, mes=None):
+    """Returns {aluno_id: 'Pago'|'Atrasado'|'A Vencer'} for the given month (default: current)."""
+    from datetime import date as _date
+    if ano is None:
+        _hoje = _date.today()
+        ano, mes = _hoje.year, _hoje.month
+    prox_mes = mes + 1 if mes < 12 else 1
+    prox_ano = ano if mes < 12 else ano + 1
+    inicio = f"{ano:04d}-{mes:02d}-01"
+    fim = f"{prox_ano:04d}-{prox_mes:02d}-01"
+    hoje_str = _date.today().isoformat()
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT aluno_id, status, data_vencimento FROM mensalidades "
+        "WHERE data_vencimento >= ? AND data_vencimento < ? ORDER BY data_vencimento ASC",
+        (inicio, fim)
+    )
+    result = {}
+    for aluno_id, status, data_venc in cur.fetchall():
+        if aluno_id not in result:
+            if status == 'PAGO':
+                result[aluno_id] = 'Pago'
+            elif data_venc and data_venc < hoje_str:
+                result[aluno_id] = 'Atrasado'
+            else:
+                result[aluno_id] = 'A Vencer'
+    conn.close()
+    return result
 
 
 # ================= GERENCIAMENTO DE PLANOS =================

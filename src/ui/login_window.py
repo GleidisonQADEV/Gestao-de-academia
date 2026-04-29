@@ -20,11 +20,7 @@ class LoginWindow(QWidget):
 
     def build_ui(self):
         # ----- Fundo geral -----
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #1e1e1e;
-            }
-        """)
+        self.setStyleSheet("QWidget { background-color: #111111; }")
 
         main_layout = QVBoxLayout(self)
         main_layout.setAlignment(Qt.AlignCenter)
@@ -35,23 +31,20 @@ class LoginWindow(QWidget):
         card.setFixedSize(360, 520)
         card.setStyleSheet("""
             QFrame#card {
-                background-color: #ffffff;
-                border-radius: 18px;
+                background-color: #161616;
+                border-radius: 14px;
+                border: 1px solid #222222;
             }
         """)
 
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(20, 20, 20, 20)
-        card_layout.setSpacing(18)
+        card_layout.setContentsMargins(28, 24, 28, 24)
+        card_layout.setSpacing(14)
         card_layout.setAlignment(Qt.AlignTop)
 
-        # ----- Área branca da logo -----
+        # ----- Área da logo -----
         logo_frame = QFrame()
-        logo_frame.setStyleSheet("""
-            QFrame {
-                background-color: #ffffff;
-            }
-        """)
+        logo_frame.setStyleSheet("QFrame { background: transparent; }")
         logo_layout = QVBoxLayout(logo_frame)
         logo_layout.setAlignment(Qt.AlignCenter)
 
@@ -78,12 +71,14 @@ class LoginWindow(QWidget):
         input_style = """
             QLineEdit {
                 padding: 12px;
-                border-radius: 10px;
-                border: 1px solid #cccccc;
+                border-radius: 6px;
+                border: 1px solid #1e1e1e;
+                background-color: #0e0e0e;
                 font-size: 14px;
+                color: #ffffff;
             }
             QLineEdit:focus {
-                border: 1px solid #b00020;
+                border: 1px solid #cc1e1e;
             }
         """
         self.user_input.setStyleSheet(input_style)
@@ -95,15 +90,15 @@ class LoginWindow(QWidget):
         btn_login.setCursor(Qt.PointingHandCursor)
         btn_login.setStyleSheet("""
             QPushButton {
-                background-color: #b00020;
+                background-color: #cc1e1e;
                 color: white;
-                border-radius: 12px;
+                border-radius: 6px;
                 font-size: 15px;
                 font-weight: bold;
+                border: none;
             }
-            QPushButton:hover {
-                background-color: #8c001a;
-            }
+            QPushButton:hover  { background-color: #e02020; }
+            QPushButton:pressed{ background-color: #a01515; }
         """)
         btn_login.clicked.connect(self.login)
         
@@ -113,15 +108,16 @@ class LoginWindow(QWidget):
         btn_restaurar.setCursor(Qt.PointingHandCursor)
         btn_restaurar.setStyleSheet("""
             QPushButton {
-                background-color: #6b7280;
-                color: white;
-                border-radius: 8px;
+                background-color: transparent;
+                color: #555555;
+                border-radius: 6px;
                 font-size: 12px;
-                font-weight: normal;
-                margin-top: 10px;
+                border: 1px solid #2a2a2a;
+                margin-top: 6px;
             }
             QPushButton:hover {
-                background-color: #4b5563;
+                color: #888888;
+                border-color: #444444;
             }
         """)
         btn_restaurar.clicked.connect(self.restaurar_senha)

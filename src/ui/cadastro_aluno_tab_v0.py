@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap
 
-from ui.base_tab import BaseTab, SCROLLBAR_STYLE
+from ui.base_tab_v0 import BaseTab
 from ui.app_dialog import AppDialog, show_info, show_question
 from database.db import inserir_aluno, cpf_existe, email_existe, get_planos_formatados
 from database.kids_db import inserir_kid, cpf_kid_existe
@@ -35,57 +35,24 @@ class CadastroAlunoTab(BaseTab):
 
     # -------------------------------------------------
     def build_ui(self):
-        from PySide6.QtWidgets import QScrollArea
+
         root = self.layout()
-        root.setSpacing(8)
-
-        # ── TITLE ROW ──
-        top_row = QHBoxLayout()
-        titulo = QLabel("Cadastrar Aluno")
-        titulo.setStyleSheet(
-            "color:#ffffff; font-size:22px; font-weight:700;"
-            " font-family:'Arial Black',sans-serif; background:transparent; border:none;"
-        )
-        top_row.addWidget(titulo)
-        top_row.addStretch()
-        root.addLayout(top_row)
-
-        # ── SCROLL AREA ──
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: transparent; }} {SCROLLBAR_STYLE}")
 
         container = QWidget()
-        container.setObjectName("cadastroContainer")
-        container.setMaximumWidth(800)
-        container.setStyleSheet(
-            "#cadastroContainer { background: #161616; border: 1px solid #1e1e1e;"
-            " border-radius: 10px; }"
-        )
+        container.setMaximumWidth(760)
 
         form = QVBoxLayout(container)
-        form.setContentsMargins(24, 20, 24, 20)
-        form.setSpacing(14)
+        form.setSpacing(12)
         form.setAlignment(Qt.AlignTop)
 
-        # wrapper para centralizar o container
-        scroll_inner = QWidget()
-        scroll_inner.setStyleSheet("background: transparent;")
-        scroll_inner_layout = QHBoxLayout(scroll_inner)
-        scroll_inner_layout.setContentsMargins(0, 0, 0, 0)
-        scroll_inner_layout.addStretch()
-        scroll_inner_layout.addWidget(container)
-        scroll_inner_layout.addStretch()
-
-        scroll.setWidget(scroll_inner)
-        root.addWidget(scroll)
+        root.addWidget(container, alignment=Qt.AlignTop | Qt.AlignHCenter)
 
         # -------- TAMANHOS --------
         LABEL_W = 130
-        INPUT_W = 460
-        SMALL_W = 220
-        MINI_W = 220
-        CPF_W = 280
+        INPUT_W = 420
+        SMALL_W = 190
+        MINI_W = 200
+        CPF_W = 260
         BTN_W = 150
         BTN_H = 36
 
@@ -97,9 +64,7 @@ class CadastroAlunoTab(BaseTab):
             label = QLabel(label_text)
             label.setFixedWidth(LABEL_W)
             label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            label.setStyleSheet(
-                "color: #555555; font-size: 12px; background: transparent; border: none;"
-            )
+            label.setStyleSheet("color: white; font-size: 13px;")
 
             h.addWidget(label)
             h.addWidget(widget)
@@ -108,51 +73,43 @@ class CadastroAlunoTab(BaseTab):
 
         input_style = """
             QLineEdit, QDateEdit, QComboBox {
-                background-color: #0e0e0e;
-                padding: 8px 10px;
-                border-radius: 7px;
-                border: 1px solid #1e1e1e;
+                background-color: rgba(255,255,255,0.95);
+                padding: 7px 10px;
+                border-radius: 10px;
+                border: 1.5px solid #ccc;
                 font-size: 13px;
-                color: #cccccc;
+                color: #111;
             }
             QLineEdit:focus, QDateEdit:focus, QComboBox:focus {
-                border: 1px solid #cc1e1e;
+                border: 1.5px solid #e50914;
             }
-            QComboBox QAbstractItemView {
-                background: #0e0e0e;
-                color: #aaaaaa;
-                selection-background-color: #cc1e1e;
-                border: 1px solid #1e1e1e;
-            }
-            QDateEdit::drop-down { border: none; }
         """
 
         def red_btn():
             return """
                 QPushButton {
-                    background-color: #cc1e1e;
+                    background-color: #e50914;
                     color: white;
-                    border-radius: 6px;
+                    border-radius: 9px;
                     padding: 6px 10px;
                     font-weight: bold;
                     font-size: 12px;
-                    border: none;
                 }
-                QPushButton:hover  { background-color: #e02020; }
-                QPushButton:pressed{ background-color: #a01515; }
+                QPushButton:hover { background-color: #ff1a24; }
             """
 
+        # -------- TITLE --------
+        title = QLabel("Cadastro de Aluno")
+        title.setStyleSheet("color:white;font-size:22px;font-weight:bold;")
+        form.addWidget(title, alignment=Qt.AlignLeft)
+
         legenda = QLabel("* Campos obrigatórios")
-        legenda.setStyleSheet(
-            "color:#444444; font-size:10px; background:transparent; border:none; margin-bottom:4px;"
-        )
+        legenda.setStyleSheet("color:#ff6666;font-size:11px;font-style:italic;margin-bottom:10px;")
         form.addWidget(legenda, alignment=Qt.AlignLeft)
 
         # -------- KIDS CHECK --------
         self.chk_kids = QCheckBox("Aluno Kids (menor de 16)")
-        self.chk_kids.setStyleSheet(
-            "color:#888888; font-size:12px; font-weight:500; background:transparent; border:none;"
-        )
+        self.chk_kids.setStyleSheet("color:white;font-weight:bold;")
         self.chk_kids.stateChanged.connect(self.toggle_responsavel)
         self.chk_kids.stateChanged.connect(self.atualizar_faixas)
         form.addWidget(self.chk_kids)
@@ -174,8 +131,6 @@ class CadastroAlunoTab(BaseTab):
 
         # -------- RESPONSÁVEL --------
         self.resp_wrap = QWidget()
-        self.resp_wrap.setObjectName("respWrap")
-        self.resp_wrap.setStyleSheet("#respWrap { background: transparent; }")
         resp_layout = QVBoxLayout(self.resp_wrap)
         resp_layout.setContentsMargins(0, 0, 0, 0)
         resp_layout.setSpacing(12)
@@ -248,7 +203,6 @@ class CadastroAlunoTab(BaseTab):
 
         fw = QWidget()
         fw.setFixedWidth(INPUT_W)
-        fw.setStyleSheet("background: transparent;")
         fl = QHBoxLayout(fw)
         fl.setContentsMargins(0, 0, 0, 0)
         fl.setSpacing(12)
@@ -269,7 +223,6 @@ class CadastroAlunoTab(BaseTab):
 
         pw = QWidget()
         pw.setFixedWidth(INPUT_W)
-        pw.setStyleSheet("background: transparent;")
         pl = QHBoxLayout(pw)
         pl.setContentsMargins(0, 0, 0, 0)
         pl.setSpacing(12)
@@ -292,7 +245,6 @@ class CadastroAlunoTab(BaseTab):
         self.valor_personalizado.setStyleSheet(input_style)
 
         self.valor_plano_wrap = QWidget()
-        self.valor_plano_wrap.setStyleSheet("background: transparent;")
         vpl = QHBoxLayout(self.valor_plano_wrap)
         vpl.setContentsMargins(0, 0, 0, 0)
         vpl.addLayout(row("Valor do Plano:", self.valor_personalizado))
@@ -301,22 +253,21 @@ class CadastroAlunoTab(BaseTab):
         self.valor_plano_wrap.setVisible(False)
 
         # -------- AVISO FINANCEIRO --------
-        aviso_financeiro = QLabel("A data de vencimento pode ser ajustada em \"Editar\" na aba Financeiro.")
-        aviso_financeiro.setStyleSheet(
-            "color:#7a6020; font-size:11px; background: rgba(184,124,14,0.08);"
-            " border: 1px solid rgba(184,124,14,0.2); border-radius: 6px; padding: 6px 10px;"
-        )
+        aviso_financeiro = QLabel("A data de pgto deve ser ajustada em \"editar\" na aba financeiro")
+        aviso_financeiro.setStyleSheet("color:#ff6666;font-size:11px;font-style:italic;margin:5px 0px;")
         aviso_financeiro.setWordWrap(True)
-        aviso_financeiro.setObjectName("avisoFinanceiro")
-        form.addWidget(aviso_financeiro)
+        
+        # Criar layout para centralizar o aviso
+        aviso_layout = QHBoxLayout()
+        aviso_layout.addStretch()
+        aviso_layout.addWidget(aviso_financeiro)
+        aviso_layout.addStretch()
+        form.addLayout(aviso_layout)
 
         # -------- ARQUIVOS --------
         self.foto_label = QLabel()
-        self.foto_label.setObjectName("cadastroFotoLabel")
         self.foto_label.setFixedSize(70, 70)
-        self.foto_label.setStyleSheet(
-            "#cadastroFotoLabel { background:#1a1a1a; border:1px solid #222222; border-radius:6px; }"
-        )
+        self.foto_label.setStyleSheet("background:#222;border-radius:8px;")
 
         btn_foto = QPushButton("Selecionar Foto")
         btn_foto.setFixedSize(BTN_W, BTN_H)
@@ -334,7 +285,6 @@ class CadastroAlunoTab(BaseTab):
         btn_biometria.clicked.connect(self.cadastrar_biometria)
 
         aw = QWidget()
-        aw.setStyleSheet("background: transparent;")
         al = QHBoxLayout(aw)
         al.setContentsMargins(0, 0, 0, 0)
         al.setSpacing(10)
@@ -347,29 +297,28 @@ class CadastroAlunoTab(BaseTab):
 
         # -------- BOTÕES --------
         btn = QPushButton("Salvar Aluno")
-        btn.setFixedSize(160, 38)
-        btn.setStyleSheet("""
-            QPushButton {
-                background: #cc1e1e; color: #ffffff;
-                border: none; border-radius: 7px;
-                font-size: 12px; font-weight: 600;
-            }
-            QPushButton:hover  { background: #e02020; }
-            QPushButton:pressed{ background: #a01515; }
-        """)
+        btn.setFixedSize(200, 44)
+        btn.setStyleSheet(red_btn())
         btn.clicked.connect(self.salvar)
-
+        
         self.btn_vincular = QPushButton("Vincular a Responsável")
-        self.btn_vincular.setFixedSize(180, 38)
+        self.btn_vincular.setFixedSize(200, 44)
         self.btn_vincular.setStyleSheet("""
             QPushButton {
-                background: transparent; color: #555555;
-                border: 1px solid #2a2a2a; border-radius: 7px;
-                font-size: 12px; font-weight: 500;
+                background-color: #2E86AB;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
             }
-            QPushButton:hover { color: #cccccc; border-color: #444444; background: #1a1a1a; }
+            QPushButton:hover {
+                background-color: #1e5f7a;
+            }
         """)
         self.btn_vincular.clicked.connect(self.vincular_responsavel)
+        
+        # Estado inicial: botão visível para alunos não-kids
         self.btn_vincular.setVisible(True)
 
         br = QHBoxLayout()
@@ -430,9 +379,9 @@ class CadastroAlunoTab(BaseTab):
         self.certificado_path = None
         self.biometria_data = None
         self.foto_label.clear()
-        self.foto_label.setStyleSheet("background:#161616; border:1px solid #1e1e1e; border-radius:6px;")
+        self.foto_label.setStyleSheet("background:#222;border-radius:8px;")
         self.foto_label.clear()
-        self.foto_label.setStyleSheet("background:#161616; border:1px solid #1e1e1e; border-radius:6px;")
+        self.foto_label.setStyleSheet("background:#222;border-radius:8px;")
         self.resp_wrap.setVisible(False)
 
     def toggle_responsavel(self):

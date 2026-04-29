@@ -8,32 +8,32 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap, QPalette, QBrush
 
-from ui.base_tab import BaseTab
-from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes
+from ui.base_tab_v0 import BaseTab
+from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe
 from database.kids_db import get_conn, atualizar_kid, cpf_kid_existe
 from ui.app_dialog import show_info, show_warning, show_error, show_question, show_custom
 
 # ================= ESTILOS CSS =================
 campo_nome_style = """
 QLabel {
-    background: #1e1e1e;
-    border-radius: 6px;
+    background: rgba(255,255,255,0.95);
+    border-radius: 8px;
     padding: 8px 12px;
     font-size: 14px;
     font-weight: bold;
-    color: #ffffff;
-    border: 1px solid #2a2a2a;
+    color: #333;
+    border: 1px solid rgba(255,255,255,0.7);
 }
 """
 
 campo_style = """
 QLabel {
-    background: #181818;
-    border-radius: 5px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 6px;
     padding: 6px 10px;
     font-size: 11px;
-    color: #aaaaaa;
-    border: 1px solid #222222;
+    color: #444;
+    border: 1px solid rgba(255,255,255,0.5);
     margin: 1px;
 }
 """
@@ -46,12 +46,12 @@ class AlunoCard(QFrame):
         self.build_ui()
 
     def build_ui(self):
-        self.setFixedSize(480, 320)
+        self.setFixedSize(480, 320)  # Aumentado de 450x320 para 480x320 para melhor visualização
         self.setStyleSheet("""
             QFrame {
-                background: #161616;
-                border-radius: 8px;
-                border: 1px solid #222222;
+                background: rgba(255,255,255,0.1);
+                border-radius: 12px;
+                border: 1px solid rgba(255,255,255,0.3);
             }
         """)
 
@@ -65,12 +65,12 @@ class AlunoCard(QFrame):
         
         # FOTO menor
         self.foto = QLabel()
-        self.foto.setFixedSize(80, 80)
+        self.foto.setFixedSize(80, 80)  # Menor
         self.foto.setStyleSheet("""
             QLabel {
-                background: #1e1e1e;
-                border-radius: 6px;
-                border: 1px solid #2a2a2a;
+                background: rgba(255,255,255,0.9);
+                border-radius: 8px;
+                border: 1px solid rgba(255,255,255,0.5);
             }
         """)
         self.foto.setAlignment(Qt.AlignCenter)
@@ -89,13 +89,12 @@ class AlunoCard(QFrame):
         self.status.setFixedHeight(24)
         self.status.setStyleSheet("""
             QLabel {
-                font-weight: bold;
-                font-size: 10px;
-                border-radius: 6px;
-                padding: 2px 6px;
-                background: rgba(26,122,60,0.15);
-                color: #4caf50;
-                border: 1px solid rgba(26,122,60,0.3);
+                font-weight:bold;
+                font-size:10px;
+                border-radius:6px;
+                padding:2px 6px;
+                background:#0f5132;
+                color:#00ff99;
             }
         """)
         
@@ -127,15 +126,10 @@ class AlunoCard(QFrame):
         self.lbl_faixa = QLabel("")
         self.lbl_faixa.setStyleSheet(campo_style)
         
-        self.lbl_belt_color = QLabel()
-        self.lbl_belt_color.setFixedSize(26, 6)
-        self.lbl_belt_color.setStyleSheet("background: #d0d0d0; border-radius: 2px;")
-
         col1.addWidget(self.lbl_cpf)
         col1.addWidget(self.lbl_email)
         col1.addWidget(self.lbl_telefone)
         col1.addWidget(self.lbl_faixa)
-        col1.addWidget(self.lbl_belt_color)
         
         # Coluna 2
         col2 = QVBoxLayout()
@@ -223,18 +217,7 @@ class AlunoCard(QFrame):
             if altura: extras.append(f"{altura}cm")
             faixa_info += f" ({'/'.join(extras)})"
         self.lbl_faixa.setText(faixa_info)
-        _BELT_COLORS = {
-            "Branca": ("#d0d0d0", False), "Azul": ("#1a4fa0", False),
-            "Roxa": ("#6b2fa0", False), "Marrom": ("#6b3a1f", False),
-            "Preta": ("#111111", True),
-        }
-        faixa_key = dados.get('faixa', 'Branca')
-        belt_color, needs_border = _BELT_COLORS.get(faixa_key, ("#888888", False))
-        border_str = "border: 1px solid #555555;" if needs_border else ""
-        self.lbl_belt_color.setStyleSheet(
-            f"background: {belt_color}; border-radius: 2px; {border_str}"
-        )
-
+        
         self.lbl_plano.setText(f"💳 {dados['plano']}")
 
         # Responsável (para alunos que são dependentes)
@@ -265,24 +248,14 @@ class AlunoCard(QFrame):
         if dados["status"]:
             self.status.setText("ATIVO")
             self.status.setStyleSheet("""
-                QLabel {
-                    background: rgba(26,122,60,0.15);
-                    color: #4caf50;
-                    border: 1px solid rgba(26,122,60,0.3);
-                    border-radius: 6px; padding: 2px 6px;
-                    font-weight: bold; font-size: 10px;
-                }
+                QLabel { background:#0f5132;color:#00ff99;
+                        border-radius:8px;padding:4px;font-weight:bold;font-size:10px;}
             """)
         else:
             self.status.setText("INATIVO")
             self.status.setStyleSheet("""
-                QLabel {
-                    background: rgba(204,30,30,0.12);
-                    color: #cc6666;
-                    border: 1px solid rgba(204,30,30,0.25);
-                    border-radius: 6px; padding: 2px 6px;
-                    font-weight: bold; font-size: 10px;
-                }
+                QLabel { background:#5a1a1a;color:#ff6666;
+                        border-radius:8px;padding:4px;font-weight:bold;font-size:10px;}
             """)
 
         # Foto com melhor enquadramento
@@ -295,22 +268,12 @@ class AlunoCard(QFrame):
                 ))
             else:
                 self.foto.clear()
-                initials = ''.join(w[0].upper() for w in dados.get('nome','?').split()[:2]) if dados.get('nome') else '?'
-                self.foto.setText(initials)
-                self.foto.setAlignment(Qt.AlignCenter)
-                self.foto.setStyleSheet(
-                    "background: #1a1a1a; border: 1px solid #252525; border-radius: 14px;"
-                    " color: #666666; font-size: 9px; font-weight: 600;"
-                )
+                self.foto.setText("🗄\nSem foto")
+                self.foto.setStyleSheet(self.foto.styleSheet() + "color: #999; font-size: 11px; text-align: center;")
         else:
             self.foto.clear()
-            initials = ''.join(w[0].upper() for w in dados.get('nome','?').split()[:2]) if dados.get('nome') else '?'
-            self.foto.setText(initials)
-            self.foto.setAlignment(Qt.AlignCenter)
-            self.foto.setStyleSheet(
-                "background: #1a1a1a; border: 1px solid #252525; border-radius: 14px;"
-                " color: #666666; font-size: 9px; font-weight: 600;"
-            )
+            self.foto.setText("🗄\nSem foto")
+            self.foto.setStyleSheet(self.foto.styleSheet() + "color: #999; font-size: 11px; text-align: center;")
             
         # Aviso de vínculo para dependentes
         self.mostrar_vinculo_dependentes(dados)
@@ -329,8 +292,8 @@ class AlunoCard(QFrame):
             self.vinculo_widget.setStyleSheet("""
                 QLabel {
                     background-color: rgba(229, 9, 20, 0.1);
-                    color: #cc1e1e;
-                    border: 1px dashed #cc1e1e;
+                    color: #e50914;
+                    border: 1px dashed #e50914;
                     border-radius: 6px;
                     padding: 2px 6px;
                     font-size: 9px;
@@ -353,300 +316,154 @@ class AlunosTab(BaseTab):
         super().__init__()
         self.registros = []
         self.aluno_atual = None
-        self.nav_cadastro = None
         self.build_ui()
         self.carregar_dados()
 
     # ---------------- UI ----------------
 
     def build_ui(self):
+        # Usa o layout da BaseTab que já tem background
         root = self.layout()
-        self.content_layout.setContentsMargins(20, 16, 20, 16)
-        root.setSpacing(8)
+        
+        # Forçar margens mínimas para busca ficar no topo absoluto
+        self.content_layout.setContentsMargins(15, 10, 15, 15)  # Margem superior bem pequena
+        root.setSpacing(5)  # Espaçamento mínimo entre elementos
 
-        # ── TITLE ROW ──
-        top_row = QHBoxLayout()
+        # TÍTULO - no topo
         titulo = QLabel("Alunos")
-        titulo.setStyleSheet(
-            "color:#ffffff; font-size:22px; font-weight:700;"
-            " font-family:'Arial Black',sans-serif; background:transparent;"
-        )
-        top_row.addWidget(titulo)
-        top_row.addStretch()
+        titulo.setStyleSheet("color:white;font-size:24px;font-weight:bold;margin:0px;padding:0px;")
+        root.addWidget(titulo)
 
-        btn_novo = QPushButton("+ Novo Aluno")
-        btn_novo.setFixedHeight(34)
-        btn_novo.setStyleSheet("""
-            QPushButton {
-                background: #cc1e1e; color: #ffffff;
-                font-size: 12px; font-weight: 600;
-                border: none; border-radius: 7px; padding: 0 16px;
-            }
-            QPushButton:hover  { background: #e02020; }
-            QPushButton:pressed{ background: #a01515; }
-        """)
-        btn_novo.clicked.connect(lambda: self.nav_cadastro() if self.nav_cadastro else None)
-        top_row.addWidget(btn_novo)
-        root.addLayout(top_row)
+        # BUSCA - imediatamente após o título (sem espaçamento extra)
+        busca_row = QHBoxLayout()
+        busca_row.setSpacing(10)
+        busca_row.setContentsMargins(0, 3, 0, 0)  # Margem mínima
 
-        # ── SEARCH ROW ──
-        search_row = QHBoxLayout()
-        search_row.setSpacing(7)
+        # Container para centralizar e limitar largura da busca
+        busca_container = QWidget()
+        busca_container.setMaximumWidth(600)  # Limitar largura máxima
+        busca_container_layout = QHBoxLayout(busca_container)
+        busca_container_layout.setContentsMargins(0, 0, 0, 0)
+        busca_container_layout.setSpacing(10)
 
         self.busca = QLineEdit()
-        self.busca.setPlaceholderText("Buscar por nome, CPF...")
-        self.busca.setFixedHeight(32)
+        self.busca.setPlaceholderText("🔍 Pesquisar: Nome, CPF, responsável ou digite 'todos' para listar todos")
+        self.busca.setFixedHeight(40)
         self.busca.setStyleSheet("""
             QLineEdit {
-                background: #161616; border: 1px solid #1e1e1e;
-                border-radius: 7px; padding: 0 10px;
-                font-size: 11px; color: #888888;
+                background:white;
+                border-radius:14px;
+                padding:10px 14px;
+                font-size:13px;
+                margin:0px;
+                color: #222222;
+                font-weight: 500;
             }
-            QLineEdit:focus { border-color: #cc1e1e; }
-        """)
-        self.busca.returnPressed.connect(self.buscar)
-        self.busca.textChanged.connect(self._on_search_changed)
-        search_row.addWidget(self.busca, 1)
-
-        self.combo_faixa = QComboBox()
-        self.combo_faixa.addItems(["Todas as faixas", "Branca", "Azul", "Roxa", "Marrom", "Preta"])
-        self.combo_faixa.setFixedHeight(32)
-        self.combo_faixa.setStyleSheet("""
-            QComboBox {
-                background: #161616; border: 1px solid #1e1e1e;
-                border-radius: 7px; color: #444444;
-                font-size: 11px; padding: 0 8px;
-            }
-            QComboBox::drop-down { border: none; width: 20px; }
-            QComboBox QAbstractItemView {
-                background: #161616; border: 1px solid #1e1e1e;
-                color: #888888; selection-background-color: #cc1e1e;
+            QLineEdit::placeholder {
+                color: #888888;
+                font-style: italic;
             }
         """)
-        self.combo_faixa.currentIndexChanged.connect(self._on_filter_changed)
-        search_row.addWidget(self.combo_faixa)
-        root.addLayout(search_row)
 
-        # ── TABLE CONTAINER ──
-        table_frame = QFrame()
-        table_frame.setObjectName("tableContainer")
-        table_frame.setStyleSheet("""
-            QFrame#tableContainer {
-                background: #161616;
-                border: 1px solid #1e1e1e;
-                border-radius: 10px;
+        btn_buscar = QPushButton("Buscar")
+        btn_buscar.setFixedSize(120, 40)
+        btn_buscar.setStyleSheet("""
+            QPushButton {
+                background:#e50914;color:white;border-radius:12px;
+                font-weight:bold;
+                margin:0px;
             }
+            QPushButton:hover { background:#ff1a24; }
         """)
-        table_vbox = QVBoxLayout(table_frame)
-        table_vbox.setContentsMargins(0, 0, 0, 0)
-        table_vbox.setSpacing(0)
+        btn_buscar.clicked.connect(self.buscar)
 
-        # Header row
-        header_widget = QWidget()
-        header_widget.setObjectName("tableHeader")
-        header_widget.setFixedHeight(34)
-        header_widget.setStyleSheet(
-            "#tableHeader { background: transparent; border-bottom: 1px solid #1a1a1a; }"
-        )
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(12, 0, 12, 0)
-        header_layout.setSpacing(0)
+        busca_container_layout.addWidget(self.busca, 1)
+        busca_container_layout.addWidget(btn_buscar)
+        
+        # Centralizar o container de busca
+        busca_row.addStretch()
+        busca_row.addWidget(busca_container)
+        busca_row.addStretch()
+        
+        root.addLayout(busca_row)
+        
+        # Espaço antes do card
+        root.addSpacing(15)
 
-        _HS = "font-size:9px; color:#333333; letter-spacing:1px; background:transparent; border:none;"
-        lh_nome = QLabel("NOME")
-        lh_nome.setStyleSheet(_HS)
-        header_layout.addWidget(lh_nome, 1)
-        for htext, hw in [("FAIXA", 140), ("PLANO", 140), ("STATUS", 90)]:
-            lh = QLabel(htext)
-            lh.setFixedWidth(hw)
-            lh.setStyleSheet(_HS)
-            header_layout.addWidget(lh)
-        table_vbox.addWidget(header_widget)
-
-        # Scrollable rows
+        # Área de scroll para cards (centralizada robustamente)
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll_area.setStyleSheet("""
-            QScrollArea { border: none; background: transparent; }
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
             QScrollBar:vertical {
-                background: #111111; width: 6px; border-radius: 3px; margin: 0;
+                background-color: rgba(0,0,0,0.2);
+                width: 12px;
+                border-radius: 6px;
+                margin: 3px;
             }
             QScrollBar::handle:vertical {
-                background: #333333; border-radius: 3px; min-height: 20px;
+                background-color: rgba(229,9,20,0.7);
+                border-radius: 6px;
+                min-height: 20px;
+                margin: 2px;
             }
-            QScrollBar::handle:vertical:hover { background: #cc1e1e; }
+            QScrollBar::handle:vertical:hover {
+                background-color: rgba(229,9,20,0.9);
+            }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0; border: none; background: none;
+                height: 0px;
             }
         """)
+        
+        # Widget de conteúdo dentro do scroll
         self.cards_area = QWidget()
         self.cards_area.setStyleSheet("background: transparent;")
-        self.cards_layout = QVBoxLayout(self.cards_area)
-        self.cards_layout.setContentsMargins(0, 0, 0, 0)
-        self.cards_layout.setSpacing(0)
-        self.cards_layout.setAlignment(Qt.AlignTop)
+        self.cards_layout = QVBoxLayout(self.cards_area)  # VBox para melhor controle
+        self.cards_layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)  # Topo e centro horizontal
+        self.cards_layout.setContentsMargins(30, 0, 30, 20)  # Margens laterais maiores para evitar cortes
+        self.cards_layout.setSpacing(15)  # Espaçamento entre cards
+        
         self.scroll_area.setWidget(self.cards_area)
-        table_vbox.addWidget(self.scroll_area)
+        root.addWidget(self.scroll_area, 1)  # Expandir verticalmente para ocupar espaço disponível
 
-        root.addWidget(table_frame, 1)
-
-        # ── ACTION BUTTONS ──
+        # -------- BOTÕES --------
         self.btns = QHBoxLayout()
 
-        self.btn_edit   = self._btn("Editar")
+        self.btn_edit = self._btn("Editar")
         self.btn_toggle = self._btn("Ativar / Inativar")
-        self.btn_del    = self._btn("Excluir")
-        self.btn_vincular = self._btn("Vincular")
+        self.btn_del = self._btn("Excluir")
 
         self.btn_edit.clicked.connect(self.editar)
         self.btn_toggle.clicked.connect(self.toggle_status)
         self.btn_del.clicked.connect(self.excluir)
-        self.btn_vincular.clicked.connect(self.vincular_responsavel)
 
         self.btns.addStretch()
         self.btns.addWidget(self.btn_edit)
         self.btns.addWidget(self.btn_toggle)
         self.btns.addWidget(self.btn_del)
-        self.btns.addWidget(self.btn_vincular)
         self.btns.addStretch()
+
         root.addLayout(self.btns)
-
+        
+        # Adicionar stretch no final para empurrar conteúdo para cima
+        root.addStretch()  # Empurra todo conteúdo para cima
+        
         self._toggle_acoes(False)
-
-    def _create_table_row(self, dados):
-        row = QFrame()
-        row.setObjectName("tableRow")
-        row.setStyleSheet("""
-            QFrame#tableRow {
-                background: transparent;
-                border: none;
-                border-bottom: 1px solid #181818;
-            }
-            QFrame#tableRow:hover { background: #1a1a1a; }
-        """)
-        row.setFixedHeight(56)
-
-        rl = QHBoxLayout(row)
-        rl.setContentsMargins(16, 0, 12, 0)
-        rl.setSpacing(0)
-
-        # Name
-        lbl_nome = QLabel(dados.get('nome', ''))
-        lbl_nome.setStyleSheet(
-            "font-size: 14px; color: #ffffff; background: transparent; border: none;"
-        )
-        rl.addWidget(lbl_nome, 1)
-
-        # Belt
-        belt_wrap = QWidget()
-        belt_wrap.setObjectName("beltWrap")
-        belt_wrap.setFixedWidth(140)
-        belt_wrap.setStyleSheet("#beltWrap { background: transparent; }")
-        bwl = QHBoxLayout(belt_wrap)
-        bwl.setContentsMargins(0, 0, 0, 0)
-        bwl.setSpacing(7)
-        _BELT_COLORS = {
-            "Branca": "#d0d0d0", "Azul": "#1a4fa0",
-            "Roxa": "#6b2fa0", "Marrom": "#8b4a1f", "Preta": "#111111",
-        }
-        faixa = dados.get('faixa', 'Branca')
-        bcolor = _BELT_COLORS.get(faixa, "#888888")
-        border_s = "border: 1px solid #555555;" if faixa == "Preta" else "border: none;"
-        belt_rect = QLabel()
-        belt_rect.setFixedSize(30, 7)
-        belt_rect.setStyleSheet(f"background: {bcolor}; border-radius: 2px; {border_s}")
-        bwl.addWidget(belt_rect)
-        belt_name = QLabel(faixa)
-        belt_name.setStyleSheet(
-            "font-size: 11px; color: #555555; background: transparent; border: none;"
-        )
-        bwl.addWidget(belt_name)
-        bwl.addStretch()
-        rl.addWidget(belt_wrap)
-
-        # Plan
-        plano_text = (dados.get('plano') or '')
-        lbl_plano = QLabel(plano_text)
-        lbl_plano.setFixedWidth(140)
-        lbl_plano.setStyleSheet(
-            "font-size: 11px; color: #555555; background: transparent; border: none;"
-        )
-        rl.addWidget(lbl_plano)
-
-        # Payment status badge
-        pag_status = dados.get('pagamento_status', '')
-        _STATUS_STYLES = {
-            'Pago':     ("background: rgba(26,122,60,0.15);  color: #2d8a52;", "Pago"),
-            'Atrasado': ("background: rgba(204,30,30,0.15);  color: #c04444;", "Atrasado"),
-            'A Vencer': ("background: rgba(184,124,14,0.15); color: #a07020;", "A Vencer"),
-        }
-        s_style, s_text = _STATUS_STYLES.get(pag_status, ("background: transparent; color: #333333;", "—"))
-        status_lbl = QLabel(s_text)
-        status_lbl.setFixedWidth(90)
-        status_lbl.setStyleSheet(
-            f"{s_style} font-size: 11px; font-weight: 500; padding: 3px 10px;"
-            f" border-radius: 5px; border: none;"
-        )
-        rl.addWidget(status_lbl)
-
-        row._dados = dados
-
-        def on_click(event, r=row, d=dados):
-            self._select_table_row(r, d)
-        row.mousePressEvent = on_click
-        row.setCursor(Qt.PointingHandCursor)
-        return row
-
-    def _select_table_row(self, selected_row, dados):
-        """Highlights the selected row, deselects others."""
-        for i in range(self.cards_layout.count()):
-            w = self.cards_layout.itemAt(i).widget()
-            if w and hasattr(w, '_dados'):
-                w.setStyleSheet("""
-                    QFrame#tableRow {
-                        background: transparent; border: none;
-                        border-bottom: 1px solid #181818;
-                    }
-                    QFrame#tableRow:hover { background: #1a1a1a; }
-                """)
-        selected_row.setStyleSheet("""
-            QFrame#tableRow {
-                background: rgba(204,30,30,0.08); border: none;
-                border-bottom: 1px solid #181818;
-                border-left: 2px solid #cc1e1e;
-            }
-        """)
-        self.aluno_atual = dados
-        self._toggle_acoes(True)
-
-    def _populate_table(self, alunos_list):
-        """Clears and repopulates the table with sorted rows."""
-        self.limpar_cards_completo()
-        self.aluno_atual = None
-        self._toggle_acoes(False)
-        sorted_list = sorted(alunos_list, key=lambda x: (x.get('nome') or '').lower())
-        for dados in sorted_list:
-            row = self._create_table_row(dados)
-            self.cards_layout.addWidget(row)
-
-    def _on_search_changed(self, text):
-        if not text.strip():
-            self._populate_table(self.registros)
-
-    def _on_filter_changed(self, _):
-        self.buscar()
 
     def _btn(self, text):
         b = QPushButton(text)
         b.setFixedSize(160, 42)
         b.setStyleSheet("""
             QPushButton {
-                background: #cc1e1e; color: white; border-radius: 6px;
-                font-weight: bold; border: none;
+                background:#e50914;color:white;border-radius:14px;
+                font-weight:bold;
             }
-            QPushButton:hover  { background: #e02020; }
-            QPushButton:pressed{ background: #a01515; }
+            QPushButton:hover { background:#ff1a24; }
         """)
         return b
 
@@ -661,15 +478,12 @@ class AlunosTab(BaseTab):
     def load(self):
         """Método para recarregar dados - usado como callback de refresh"""
         self.carregar_dados()
+        # Limpar busca e esconder cards se estiverem visíveis
         self.busca.clear()
-        self._populate_table(self.registros)
+        self.esconder_cards()
 
     def carregar_dados(self):
         self.registros.clear()
-        try:
-            status_mes = obter_status_pagamento_mes()
-        except Exception:
-            status_mes = {}
 
         for a in listar_todos_alunos():  # Agora lista TODOS (ativos e inativos) com responsáveis
             # Estrutura da tabela alunos: 0-id, 1-nome, 2-cpf, 3-email, 4-telefone, 5-cep, 6-endereco, 
@@ -697,11 +511,10 @@ class AlunosTab(BaseTab):
                 "criado_em": a[16] if len(a) > 16 else None,  # criado_em
                 "biometria": a[17] if len(a) > 17 else None,   # biometria_data
                 "responsavel_id": a[18] if len(a) > 18 else None,  # responsavel_id
-                "responsavel_nome": a[19] if len(a) > 19 and a[19] else None,
-                "responsavel_cpf": a[20] if len(a) > 20 and a[20] else None,
-                "dependentes_nomes": a[21] if len(a) > 21 and a[21] else None,
-                "total_dependentes": a[22] if len(a) > 22 else 0,
-                "pagamento_status": status_mes.get(a[0], ''),
+                "responsavel_nome": a[19] if len(a) > 19 and a[19] else None,  # responsavel_nome
+                "responsavel_cpf": a[20] if len(a) > 20 and a[20] else None,  # responsavel_cpf
+                "dependentes_nomes": a[21] if len(a) > 21 and a[21] else None,  # dependentes_nomes
+                "total_dependentes": a[22] if len(a) > 22 else 0,  # total_dependentes
             })
 
         conn = get_conn()
@@ -730,7 +543,6 @@ class AlunosTab(BaseTab):
                 "status": k[17],
                 "responsavel": k[3],
                 "responsavel_cpf": k[4],
-                "pagamento_status": status_mes.get(-k[0], ''),
             })
 
     # ---------------- AÇÕES ----------------
@@ -761,7 +573,7 @@ class AlunosTab(BaseTab):
         if adultos:
             # Seção Adultos
             titulo_adultos = QLabel(f"👨‍🎓 ADULTOS ({len(adultos)})")
-            titulo_adultos.setStyleSheet("color:#cc1e1e;font-size:14px;font-weight:bold;margin:10px 0px 5px 0px;")
+            titulo_adultos.setStyleSheet("color:#e50914;font-size:14px;font-weight:bold;margin:10px 0px 5px 0px;")
             scroll_layout.addWidget(titulo_adultos)
             
             for aluno in adultos:
@@ -771,7 +583,7 @@ class AlunosTab(BaseTab):
         if kids:
             # Seção Kids
             titulo_kids = QLabel(f"🧒 KIDS ({len(kids)})")
-            titulo_kids.setStyleSheet("color:#cc1e1e;font-size:14px;font-weight:bold;margin:10px 0px 5px 0px;")
+            titulo_kids.setStyleSheet("color:#e50914;font-size:14px;font-weight:bold;margin:10px 0px 5px 0px;")
             scroll_layout.addWidget(titulo_kids)
             
             for kid in kids:
@@ -787,10 +599,10 @@ class AlunosTab(BaseTab):
         btn_fechar = QPushButton("Fechar")
         btn_fechar.setStyleSheet("""
             QPushButton {
-                background:#cc1e1e;color:white;border-radius:8px;
+                background:#e50914;color:white;border-radius:8px;
                 padding:8px 20px;font-weight:bold;
             }
-            QPushButton:hover { background:#e02020; }
+            QPushButton:hover { background:#ff1a24; }
         """)
         btn_fechar.clicked.connect(dialog.close)
         
@@ -902,8 +714,8 @@ class AlunosTab(BaseTab):
         # Indicador visual de que é o responsável
         card_responsavel.setStyleSheet(card_responsavel.styleSheet() + """
             QFrame {
-                border: 2px solid #cc1e1e;
-                background: rgba(204,30,30,0.08);
+                border: 2px solid #e50914;
+                background: rgba(255,255,255,0.15);
             }
         """)
         
@@ -1014,7 +826,7 @@ class AlunosTab(BaseTab):
             # Aplicar estilo de selecionado
             card.setStyleSheet(estilo_original + """
                 QFrame {
-                    border: 3px solid #cc1e1e !important;
+                    border: 3px solid #e50914 !important;
                     background: rgba(229,9,20,0.1) !important;
                 }
             """)
@@ -1201,7 +1013,8 @@ class AlunosTab(BaseTab):
         self.limpar_cards_completo()
     
     def esconder_cards(self):
-        """Limpa a tabela e esconde botões de ação."""
+        """Esconde a área dos cards"""
+        self.cards_area.setVisible(False)
         self.limpar_cards_completo()
         self._toggle_acoes(False)
 
@@ -1264,30 +1077,36 @@ class AlunosTab(BaseTab):
         self.cards_area.setVisible(True)
 
     def buscar(self):
-        self.carregar_dados()
         termo = self.busca.text().lower().strip()
-        faixa_filtro = self.combo_faixa.currentText() if hasattr(self, 'combo_faixa') else "Todas as faixas"
-
-        candidatos = self.registros
-        if faixa_filtro and faixa_filtro != "Todas as faixas":
-            candidatos = [r for r in candidatos if r.get('faixa', '') == faixa_filtro]
-
         if not termo:
-            self._populate_table(candidatos)
             return
 
-        alunos_encontrados = [
-            r for r in candidatos
-            if termo in (r["nome"] or "").lower()
-            or termo in (r["cpf"] or "")
-            or (r.get("responsavel") and termo in r["responsavel"].lower())
-        ]
+        # SEMPRE limpar tudo primeiro
+        self.esconder_cards()
+        self.carregar_dados()
+
+        # Se digitou "todos", mostrar todos os alunos em grid 2 colunas centralizado
+        if termo == "todos":
+            todos_alunos = sorted(self.registros, key=lambda x: x["nome"].lower())
+            self.mostrar_todos_grid_centralizado(todos_alunos)
+            return
+
+        # Busca específica - procurar por nome, CPF ou responsável
+        alunos_encontrados = []
+        for r in self.registros:
+            nome_match = termo in r["nome"].lower()
+            cpf_match = termo in (r["cpf"] or "")
+            resp_match = r.get("responsavel") and termo in r["responsavel"].lower()
+            
+            if nome_match or cpf_match or resp_match:
+                alunos_encontrados.append(r)
 
         if alunos_encontrados:
-            self._populate_table(alunos_encontrados)
+            # Verificar se encontrou um responsável que tem dependentes
+            self.organizar_resultado_hierarquico(alunos_encontrados)
         else:
             show_info(self, "Não encontrado", "Aluno não localizado.")
-            self._populate_table([])
+            self.esconder_cards()
 
     def toggle_status(self):
         if not self.aluno_atual:
@@ -1348,8 +1167,14 @@ class AlunosTab(BaseTab):
                     f"Status do aluno {nome} alterado para {novo_status_texto}!"
                 )
         
-        # Recarregar e repopular a tabela
-        self.buscar()
+        # Recarregar dados e manter pesquisa
+        termo_atual = self.busca.text()
+        if termo_atual:
+            self.buscar()
+        else:
+            # Mesmo sem termo de busca, precisamos recarregar os dados
+            self.carregar_dados()
+            self.esconder_cards()
     
     def executar_inativacao(self, dados_aluno):
         """Executa a inativação/ativação do aluno no banco de dados"""
@@ -1378,17 +1203,11 @@ class AlunosTab(BaseTab):
                 f"Erro ao alterar status: {str(e)}"
             )
 
-    def vincular_responsavel(self):
-        """Vincula um aluno existente a um responsável."""
-        from utils.vincular_utils import vincular_aluno_responsavel
-        if vincular_aluno_responsavel(self):
-            self.buscar()
-
     def excluir(self):
         if not self.aluno_atual:
             show_warning(self, "Erro", "Nenhum aluno selecionado!")
             return
-
+            
         d = self.aluno_atual
         nome = d["nome"]
         tipo = "Adulto" if d["tipo"] == "adulto" else "Criança"
@@ -1441,9 +1260,14 @@ class AlunosTab(BaseTab):
                 f"Aluno {nome} foi excluído com sucesso!"
             )
             
-            # Recarregar tabela
+            # Limpar seleção e esconder cards
             self.aluno_atual = None
-            self.buscar()
+            self.esconder_cards()
+            
+            # Se havia uma pesquisa, refazer para atualizar resultados
+            termo_atual = self.busca.text()
+            if termo_atual and termo_atual.lower() != "todos":
+                self.buscar()
                 
         except Exception as e:
             show_error(
@@ -1593,10 +1417,10 @@ class AlunosTab(BaseTab):
         btn.setFixedHeight(36)
         btn.setStyleSheet("""
             QPushButton {
-                background:#cc1e1e;color:white;border-radius:10px;
+                background:#e50914;color:white;border-radius:10px;
                 padding:8px 16px;font-weight:bold;font-size:11px;
             }
-            QPushButton:hover { background:#e02020; }
+            QPushButton:hover { background:#ff1a24; }
         """)
         btn.setVisible(False)
         return btn
@@ -1658,60 +1482,82 @@ class EdicaoAlunoDialog(QDialog):
             ])
         
     def setup_ui(self):
-        self.setWindowTitle(f"Editar Aluno")
+        self.setWindowTitle(f"Editar Aluno - {self.dados_aluno['nome']}")
         self.setModal(True)
-        self.setFixedSize(760, 860)
-        self.setObjectName("editDialog")
-        self.setStyleSheet("""
-            #editDialog { background: #111111; }
+        self.setFixedSize(950, 900)  # Tamanho aumentado para evitar cortes
+        
+        # Background igual ao das outras telas com logo
+        logobackground_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'logobackground.png')
+        logobackground_path = os.path.abspath(logobackground_path)
+        self.setStyleSheet(f"""
+            QDialog {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #1a1a2e,
+                    stop:1 #16213e
+                );
+                background-image: url({logobackground_path});
+                background-repeat: no-repeat;
+                background-position: center center;
+                background-attachment: fixed;
+            }}
         """)
-
+        
+        # Layout principal 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(24, 20, 24, 20)
-        main_layout.setSpacing(4)
-
-        # Título
-        title = QLabel("Editar Aluno")
-        title.setStyleSheet(
-            "color: #ffffff; font-size: 20px; font-weight: 700;"
-            " background: transparent; border: none;"
-            " font-family: 'Arial Black', sans-serif;"
-        )
-        main_layout.addWidget(title)
-        subtitle = QLabel(self.dados_aluno['nome'])
-        subtitle.setStyleSheet(
-            "color: #444444; font-size: 11px; background: transparent; border: none; margin-bottom: 10px;"
-        )
-        main_layout.addWidget(subtitle)
-
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(10)
+        
+        # Título fixo no topo
+        title = QLabel(f"✏️ Editar Aluno: {self.dados_aluno['nome']}")
+        title.setStyleSheet("color:white;font-size:22px;font-weight:bold;")
+        main_layout.addWidget(title, alignment=Qt.AlignLeft)
+        
+        # Área de scroll para o formulário
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setStyleSheet("""
-            QScrollArea { background: transparent; border: none; }
-            QScrollBar:vertical { background: #111111; width: 6px; border-radius: 3px; }
-            QScrollBar::handle:vertical { background: #333333; border-radius: 3px; min-height: 20px; }
-            QScrollBar::handle:vertical:hover { background: #cc1e1e; }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
+            QScrollBar:vertical {
+                background: rgba(255,255,255,0.1);
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background: #e50914;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #ff1a24;
+            }
         """)
         
+        # Container centralizado igual ao cadastro
         container = QWidget()
-        container.setStyleSheet("background: transparent;")
+        container.setMaximumWidth(760)
+        
         form = QVBoxLayout(container)
         form.setSpacing(12)
         form.setAlignment(Qt.AlignTop)
-
+        
+        # Widget wrapper para centralizar o container  
         wrapper = QWidget()
         wrapper.setStyleSheet("background: transparent;")
         wrapper_layout = QHBoxLayout(wrapper)
-        wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        wrapper_layout.addStretch()
         wrapper_layout.addWidget(container)
-
-        # -------- TAMANHOS --------
-        LABEL_W = 120
-        INPUT_W = 480
-        SMALL_W = 200
-        MINI_W = 210
-        CPF_W = 270
+        wrapper_layout.addStretch()
+        
+        # -------- TAMANHOS (iguais ao cadastro) --------
+        LABEL_W = 130
+        INPUT_W = 420
+        SMALL_W = 190
+        MINI_W = 200
+        CPF_W = 260
         BTN_W = 150
         BTN_H = 36
         
@@ -1723,48 +1569,48 @@ class EdicaoAlunoDialog(QDialog):
             label = QLabel(label_text)
             label.setFixedWidth(LABEL_W)
             label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            label.setStyleSheet("color: #888888; font-size: 13px; background: transparent;")
-
+            label.setStyleSheet("color: white; font-size: 13px;")
+            
             h.addWidget(label)
             h.addWidget(widget)
             h.addStretch()
             return h
-
+        
         input_style = """
             QLineEdit, QDateEdit, QComboBox {
-                background-color: #0e0e0e;
+                background-color: rgba(255,255,255,0.95);
                 padding: 7px 10px;
-                border-radius: 6px;
-                border: 1px solid #1e1e1e;
+                border-radius: 10px;
+                border: 1.5px solid #ccc;
                 font-size: 13px;
-                color: #ffffff;
+                color: #111;
             }
             QLineEdit:focus, QDateEdit:focus, QComboBox:focus {
-                border: 1px solid #cc1e1e;
+                border: 1.5px solid #e50914;
             }
             QComboBox QAbstractItemView {
-                background-color: #0e0e0e;
-                border: 1px solid #1e1e1e;
-                border-radius: 6px;
-                selection-background-color: #cc1e1e;
+                background-color: white;
+                border: 2px solid #e50914;
+                border-radius: 8px;
+                selection-background-color: #e50914;
                 selection-color: white;
                 padding: 5px;
                 font-size: 13px;
                 outline: none;
             }
             QComboBox QAbstractItemView::item {
-                background-color: #0e0e0e;
-                color: #aaaaaa;
+                background-color: white;
+                color: #333;
                 padding: 8px 12px;
                 margin: 1px;
                 border-radius: 5px;
             }
             QComboBox QAbstractItemView::item:hover {
-                background-color: #1a1a1a;
-                color: #ffffff;
+                background-color: #f8f9fa;
+                color: #e50914;
             }
             QComboBox QAbstractItemView::item:selected {
-                background-color: #cc1e1e;
+                background-color: #e50914;
                 color: white;
                 font-weight: bold;
             }
@@ -1773,14 +1619,14 @@ class EdicaoAlunoDialog(QDialog):
         def red_btn():
             return """
                 QPushButton {
-                    background-color: #cc1e1e;
+                    background-color: #e50914;
                     color: white;
                     border-radius: 9px;
                     padding: 6px 10px;
                     font-weight: bold;
                     font-size: 12px;
                 }
-                QPushButton:hover { background-color: #e02020; }
+                QPushButton:hover { background-color: #ff1a24; }
             """
         
         def bio_btn():
@@ -1796,10 +1642,9 @@ class EdicaoAlunoDialog(QDialog):
                 QPushButton:hover { background-color: #0056b3; }
             """
         
+        # -------- TÍTULO --------
         legenda = QLabel("* Campos obrigatórios")
-        legenda.setStyleSheet(
-            "color: #444444; font-size: 10px; background: transparent; border: none; margin-bottom: 4px;"
-        )
+        legenda.setStyleSheet("color:#ff6666;font-size:11px;font-style:italic;margin-bottom:10px;")
         form.addWidget(legenda, alignment=Qt.AlignLeft)
         
         # -------- NOME --------
@@ -1936,14 +1781,13 @@ class EdicaoAlunoDialog(QDialog):
         
         # -------- ARQUIVOS & BIOMETRIA --------
         self.foto_label = QLabel()
-        self.foto_label.setObjectName("fotoLabel")
         self.foto_label.setFixedSize(70, 70)
         self.foto_label.setStyleSheet("""
-            #fotoLabel {
-                background: #161616;
-                border-radius: 6px;
-                border: 1px solid #222222;
-                color: #555555;
+            QLabel {
+                background: rgba(255,255,255,0.1);
+                border-radius: 8px;
+                border: 1px solid rgba(255,255,255,0.3);
+                color: #999;
             }
         """)
         self.foto_label.setAlignment(Qt.AlignCenter)
@@ -1961,16 +1805,16 @@ class EdicaoAlunoDialog(QDialog):
         btn_cert.clicked.connect(self.selecionar_certificado)
         
         # Status de biometria
-        self.bio_status = QLabel("Sem biometria")
-        self.bio_status.setObjectName("bioStatus")
+        self.bio_status = QLabel("❌ Sem biometria")
         self.bio_status.setStyleSheet("""
-            #bioStatus {
-                background: rgba(204,30,30,0.1);
-                color: #c04444;
+            QLabel {
+                background: rgba(220,53,69,0.1);
+                color: #dc3545;
                 padding: 4px 8px;
-                border-radius: 5px;
+                border-radius: 6px;
                 font-size: 11px;
-                border: none;
+                font-weight: bold;
+                margin: 2px;
             }
         """)
         
@@ -2025,29 +1869,14 @@ class EdicaoAlunoDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(15)
         
-        btn_cancelar_edicao = QPushButton("Cancelar")
-        btn_cancelar_edicao.setFixedSize(120, 38)
-        btn_cancelar_edicao.setStyleSheet("""
-            QPushButton {
-                background: #1e1e1e; color: #888888;
-                border: 1px solid #2a2a2a; border-radius: 7px;
-                font-size: 12px; font-weight: 500;
-            }
-            QPushButton:hover { background: #252525; color: #cccccc; }
-        """)
+        btn_cancelar_edicao = QPushButton("Cancelar Edição")
+        btn_cancelar_edicao.setFixedSize(160, 44)
+        btn_cancelar_edicao.setStyleSheet(red_btn())
         btn_cancelar_edicao.clicked.connect(self.cancelar_edicao)
-
-        btn_salvar = QPushButton("Salvar Alterações")
-        btn_salvar.setFixedSize(160, 38)
-        btn_salvar.setStyleSheet("""
-            QPushButton {
-                background: #cc1e1e; color: #ffffff;
-                border: none; border-radius: 7px;
-                font-size: 12px; font-weight: 600;
-            }
-            QPushButton:hover  { background: #e02020; }
-            QPushButton:pressed{ background: #a01515; }
-        """)
+        
+        btn_salvar = QPushButton("💾 Salvar Alterações")
+        btn_salvar.setFixedSize(200, 44)
+        btn_salvar.setStyleSheet(red_btn())
         btn_salvar.clicked.connect(self.salvar)
         
         btn_layout.addStretch()
