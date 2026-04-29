@@ -13,7 +13,9 @@ npm-debug.log*
 # PyInstaller
 build/
 dist/
+# LegacyBJJ.spec é mantido no repo (configuração do PyInstaller)
 *.spec
+!LegacyBJJ.spec
 *.egg-info/
 
 # ============ BANCO DE DADOS ============

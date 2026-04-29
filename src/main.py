@@ -3,14 +3,17 @@ import os
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QHBoxLayout, QVBoxLayout, QPushButton,
-    QLabel, QStackedWidget, QFrame
+    QLabel, QStackedWidget, QFrame, QProgressDialog
 )
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtGui import QPixmap, QColor, QIcon
 
 from database.db import init_db
 from database.kids_db import init_kids_db
 from ui.version_config import get_version, set_version
+from ui.updater import UpdateChecker, Downloader, open_installer
+from ui.app_dialog import show_question, show_error, show_info
+from version import APP_VERSION, GITHUB_REPO
 
 from ui.login_window import LoginWindow
 
@@ -300,6 +303,25 @@ class MainWindow(QWidget):
             }
         """)
         btn_sair.clicked.connect(self.confirmar_sair)
+
+        # ── Botão de atualização (oculto até detectar nova versão) ──
+        self._btn_update = QPushButton("  Nova versão disponível")
+        self._btn_update.setFixedHeight(34)
+        self._btn_update.setCursor(Qt.PointingHandCursor)
+        self._btn_update.setVisible(False)
+        self._btn_update.setStyleSheet("""
+            QPushButton {
+                background: rgba(26,122,60,0.12); color: #2d8a52;
+                border: 1px solid rgba(26,122,60,0.3); border-radius: 6px;
+                font-size: 11px; font-weight: 600;
+                text-align: left; padding: 0 12px;
+                margin: 4px 8px 0 8px;
+            }
+            QPushButton:hover { background: rgba(26,122,60,0.2); }
+        """)
+        self._btn_update.clicked.connect(self._iniciar_download_update)
+        footer_layout.addWidget(self._btn_update)
+
         footer_layout.addWidget(btn_sair)
         sidebar.addWidget(footer)
 
@@ -328,6 +350,10 @@ class MainWindow(QWidget):
             self.menu_buttons[0].setChecked(True)
             self.alunos_tab.nav_cadastro = lambda: self.change_page(2, self.menu_buttons[2])
 
+        # Checar atualizações em background após 3 s (não bloqueia a inicialização)
+        QTimer.singleShot(3000, self._iniciar_checagem_update)
+        self._update_version = None
+
     def change_page(self, idx, btn):
         self.stack.setCurrentIndex(idx)
         for b in self.menu_buttons:
@@ -344,14 +370,69 @@ class MainWindow(QWidget):
     def trocar_versao(self, versao):
         if versao == _VERSION:
             return
-        from ui.app_dialog import show_question
         if show_question(self, "Trocar Versão",
                          f"Deseja trocar para {versao}? O app será reiniciado.", "Sim", "Cancelar"):
             set_version(versao)
             os.execv(sys.executable, [sys.executable] + sys.argv)
 
+    def _iniciar_checagem_update(self):
+        self._checker = UpdateChecker(APP_VERSION, GITHUB_REPO, parent=self)
+        self._checker.update_available.connect(self._on_update_disponivel)
+        self._checker.start()
+
+    def _on_update_disponivel(self, new_version: str, url: str):
+        self._update_version = new_version
+        self._update_url     = url
+        self._btn_update.setText(f"  Atualizar para v{new_version}")
+        self._btn_update.setVisible(True)
+
+    def _iniciar_download_update(self):
+        if not self._update_version:
+            return
+        if not show_question(
+            self, "Atualizar Aplicativo",
+            f"Nova versão v{self._update_version} disponível.\n\n"
+            f"Deseja baixar e instalar agora?",
+            "Baixar", "Depois"
+        ):
+            return
+
+        if not getattr(self, '_update_url', ''):
+            show_info(self, "Atualização",
+                      f"Acesse o GitHub para baixar a v{self._update_version} manualmente.")
+            return
+
+        self._progress_dlg = QProgressDialog(
+            f"Baixando v{self._update_version}...", "Cancelar", 0, 100, self
+        )
+        self._progress_dlg.setWindowTitle("Atualizando Legacy BJJ")
+        self._progress_dlg.setModal(True)
+        self._progress_dlg.setMinimumWidth(360)
+        self._progress_dlg.show()
+
+        self._downloader = Downloader(self._update_url, parent=self)
+        self._downloader.progress.connect(self._progress_dlg.setValue)
+        self._downloader.finished.connect(self._on_download_concluido)
+        self._downloader.failed.connect(self._on_download_falhou)
+        self._progress_dlg.canceled.connect(self._downloader.terminate)
+        self._downloader.start()
+
+    def _on_download_concluido(self, path: str):
+        self._progress_dlg.close()
+        if show_question(
+            self, "Download Concluído",
+            "O instalador foi baixado.\nO aplicativo será fechado para instalar a atualização.",
+            "Instalar agora", "Cancelar"
+        ):
+            open_installer(path)
+            QApplication.quit()
+
+    def _on_download_falhou(self, error: str):
+        self._progress_dlg.close()
+        show_error(self, "Erro no Download",
+                   f"Não foi possível baixar a atualização.\n\n{error}")
+
     def confirmar_sair(self):
-        from ui.app_dialog import show_question
         if show_question(self, "Confirmar Saída", "Deseja realmente sair do sistema?", "Sim", "Cancelar"):
             self.close()
             login = LoginWindow(on_success=abrir_sistema)
