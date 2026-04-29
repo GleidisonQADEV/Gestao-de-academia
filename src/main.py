@@ -272,7 +272,14 @@ class MainWindow(QWidget):
         version_row_layout.addWidget(self.btn_v1)
         footer_layout.addWidget(version_row)
 
+        _sair_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
         btn_sair = QPushButton("  Sair")
+        btn_sair.setIcon(_make_nav_icon(_sair_svg, color="#333333", size=14))
+        btn_sair.setIconSize(QSize(14, 14))
+        _icon_normal = _make_nav_icon(_sair_svg, color="#333333", size=14)
+        _icon_hover  = _make_nav_icon(_sair_svg, color="#cc1e1e", size=14)
+        btn_sair.enterEvent = lambda e: btn_sair.setIcon(_icon_hover)
+        btn_sair.leaveEvent = lambda e: btn_sair.setIcon(_icon_normal)
         btn_sair.setCursor(Qt.PointingHandCursor)
         btn_sair.setFixedHeight(38)
         btn_sair.setStyleSheet("""

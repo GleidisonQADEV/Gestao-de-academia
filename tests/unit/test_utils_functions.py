@@ -17,20 +17,21 @@ class TestUtilsBasic:
         """
         Testa se os módulos utils podem ser importados sem erro
         """
-        # Act & Assert
+        pytest.importorskip('reportlab', reason="reportlab não instalado")
         try:
             import utils.pdf_report
             import utils.vincular_utils
             assert True, "Módulos utils devem ser importáveis"
         except ImportError as e:
             assert False, f"Erro ao importar módulos utils: {e}"
-    
+
     def test_pdf_report_has_required_function(self):
         """
         Verifica se módulo pdf_report tem a função principal
         """
+        pytest.importorskip('reportlab', reason="reportlab não instalado")
         import utils.pdf_report as pdf_mod
-        
+
         assert hasattr(pdf_mod, 'gerar_relatorio_mes'), "Módulo deve ter função gerar_relatorio_mes"
         assert callable(pdf_mod.gerar_relatorio_mes), "gerar_relatorio_mes deve ser chamável"
     
@@ -55,6 +56,7 @@ class TestUtilsBasic:
         """
         Testa se função gerar_relatorio_mes tem assinatura esperada
         """
+        pytest.importorskip('reportlab', reason="reportlab não instalado")
         import utils.pdf_report as pdf_mod
         import inspect
         

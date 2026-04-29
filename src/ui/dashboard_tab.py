@@ -3,17 +3,98 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QScrollArea, QProgressBar
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont
 
 from ui.base_tab import BaseTab, SCROLLBAR_STYLE
-from database.db import obter_metricas_dashboard, gerar_mensalidades_anuais, listar_todos_alunos
+from database.db import obter_metricas_dashboard, gerar_mensalidades_anuais, listar_todos_alunos, obter_status_pagamento_mes, get_conn
 from ui.app_dialog import show_info, show_error, show_question
+
+
+_BELT_COLORS = {
+    "Branca": "#cccccc",
+    "Azul":   "#1a4fa0",
+    "Roxa":   "#6b2fa0",
+    "Marrom": "#7a4a20",
+    "Preta":  "#444444",
+}
+
+
+class PieChartWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.data = []  # [(label, value, color), ...]
+        self.setMinimumHeight(260)
+
+    def set_data(self, data):
+        self.data = [(l, v, c) for l, v, c in data if v > 0]
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        total = sum(v for _, v, _ in self.data)
+        if total == 0:
+            painter.end()
+            return
+
+        w = self.width()
+
+        # ── Donut ──
+        legend_rows = (len(self.data) + 1) // 2
+        legend_h = legend_rows * 22 + 12
+        donut_h = self.height() - legend_h
+        donut_size = min(donut_h - 14, w - 24)
+        cx = w // 2
+        cy = donut_h // 2
+        outer = QRectF(cx - donut_size / 2, cy - donut_size / 2, donut_size, donut_size)
+        hole = donut_size * 0.71
+        inner = QRectF(cx - hole / 2, cy - hole / 2, hole, hole)
+
+        start = 90 * 16
+        for _, value, color in self.data:
+            span = int(360 * 16 * value / total)
+            painter.setBrush(QBrush(QColor(color)))
+            painter.setPen(QPen(Qt.NoPen))
+            painter.drawPie(outer, start, span)
+            start += span
+
+        # hole
+        painter.setBrush(QBrush(QColor("#161616")))
+        painter.setPen(QPen(Qt.NoPen))
+        painter.drawEllipse(inner)
+
+        # ── Legend (2 colunas) ──
+        font = QFont()
+        font.setPixelSize(10)
+        painter.setFont(font)
+
+        col_w = w // 2
+        for i, (label, value, color) in enumerate(self.data):
+            col = i % 2
+            row = i // 2
+            lx = col * col_w + 6
+            ly = donut_h + row * 20 + 4
+
+            painter.setBrush(QBrush(QColor(color)))
+            painter.setPen(QPen(Qt.NoPen))
+            painter.drawRoundedRect(int(lx), int(ly + 2), 9, 9, 2, 2)
+
+            pct = round(value * 100 / total)
+            painter.setPen(QPen(QColor("#666666")))
+            painter.drawText(int(lx + 13), int(ly + 11), label)
+            painter.setPen(QPen(QColor("#444444")))
+            painter.drawText(int(lx + 13), int(ly + 21), f"{value} — {pct}%")
+
+        painter.end()
 
 
 class DashboardTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.metricas = {}
+        self._filter = "todos"
         self.setup_ui()
         self.setup_timer()
 
@@ -152,29 +233,76 @@ class DashboardTab(BaseTab):
         recent_vbox.setSpacing(0)
 
         recent_header = QHBoxLayout()
-        title_recent = QLabel("ALUNOS RECENTES")
+        title_recent = QLabel("ALUNOS")
         title_recent.setStyleSheet(
             "color: #444444; font-size: 11px; font-weight: 500; letter-spacing: 0.5px; background: transparent;"
         )
         recent_header.addWidget(title_recent)
         recent_header.addStretch()
         recent_vbox.addLayout(recent_header)
-        recent_vbox.addSpacing(12)
 
-        self._recent_list_layout = QVBoxLayout()
+        # ── Filter pills ──
+        _pill_style_active = """
+            QPushButton {
+                background: #cc1e1e; color: #ffffff; border: none;
+                border-radius: 4px; font-size: 9px; font-weight: 600; padding: 2px 8px;
+            }
+        """
+        _pill_style_inactive = """
+            QPushButton {
+                background: #1a1a1a; color: #555555;
+                border: 1px solid #222222; border-radius: 4px;
+                font-size: 9px; font-weight: 500; padding: 2px 8px;
+            }
+            QPushButton:hover { background: #222222; color: #888888; }
+        """
+        self._pill_styles = (_pill_style_active, _pill_style_inactive)
+
+        pills_row = QHBoxLayout()
+        pills_row.setSpacing(5)
+        pills_row.setContentsMargins(0, 6, 0, 6)
+        self._filter_btns = {}
+        for key, label in [("todos","Todos"), ("adultos","Adultos"),
+                            ("dependentes","Dependentes"), ("kids","Kids")]:
+            b = QPushButton(label)
+            b.setFixedHeight(18)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setStyleSheet(_pill_style_active if key == "todos" else _pill_style_inactive)
+            b.clicked.connect(lambda _, k=key: self._apply_filter(k))
+            self._filter_btns[key] = b
+            pills_row.addWidget(b)
+        pills_row.addStretch()
+        recent_vbox.addLayout(pills_row)
+        recent_vbox.addSpacing(4)
+
+        list_scroll = QScrollArea()
+        list_scroll.setWidgetResizable(True)
+        list_scroll.setStyleSheet(f"""
+            QScrollArea {{ border: none; background: transparent; }}
+            {SCROLLBAR_STYLE}
+        """)
+        list_widget = QWidget()
+        list_widget.setStyleSheet("background: transparent;")
+        self._recent_list_layout = QVBoxLayout(list_widget)
         self._recent_list_layout.setSpacing(0)
-        recent_vbox.addLayout(self._recent_list_layout)
-        recent_vbox.addStretch()
+        self._recent_list_layout.setContentsMargins(0, 0, 0, 0)
+        self._recent_list_layout.setAlignment(Qt.AlignTop)
+        list_scroll.setWidget(list_widget)
+        recent_vbox.addWidget(list_scroll, 1)
 
-        # ── RIGHT: DISTRIBUIÇÃO ──
+        # ── RIGHT COLUMN: dist card (compact) + pizza faixa ──
+        right_col = QVBoxLayout()
+        right_col.setSpacing(9)
+
+        # ── DISTRIBUIÇÃO (compacto) ──
         dist_card = QFrame()
         dist_card.setObjectName("distCard")
         dist_card.setStyleSheet("""
             QFrame#distCard { background: #161616; border-radius: 10px; border: 1px solid #222222; }
         """)
         dist_vbox = QVBoxLayout(dist_card)
-        dist_vbox.setContentsMargins(14, 14, 14, 14)
-        dist_vbox.setSpacing(9)
+        dist_vbox.setContentsMargins(14, 10, 14, 10)
+        dist_vbox.setSpacing(6)
 
         title_dist = QLabel("DISTRIBUIÇÃO DE ALUNOS")
         title_dist.setStyleSheet(
@@ -182,7 +310,6 @@ class DashboardTab(BaseTab):
         )
         dist_vbox.addWidget(title_dist)
 
-        # Hidden alunos_stats kept for test compatibility
         self.alunos_stats = QLabel()
         self.alunos_stats.hide()
         dist_vbox.addWidget(self.alunos_stats)
@@ -198,13 +325,11 @@ class DashboardTab(BaseTab):
             bar_wrap.setStyleSheet("background: transparent;")
             bwl = QVBoxLayout(bar_wrap)
             bwl.setContentsMargins(0, 0, 0, 0)
-            bwl.setSpacing(3)
+            bwl.setSpacing(2)
 
             bar_header = QHBoxLayout()
             lbl_name = QLabel(label_text)
-            lbl_name.setStyleSheet(
-                f"color: #444444; font-size: 10px; background: transparent;"
-            )
+            lbl_name.setStyleSheet("color: #444444; font-size: 10px; background: transparent;")
             bar_header.addWidget(lbl_name)
             bar_header.addStretch()
             self.__dict__[f"_pct_{attr}"] = QLabel("0%")
@@ -215,53 +340,77 @@ class DashboardTab(BaseTab):
             bwl.addLayout(bar_header)
 
             bar = QProgressBar()
-            bar.setMaximumHeight(4)
+            bar.setMaximumHeight(3)
             bar.setTextVisible(False)
             bar.setStyleSheet(f"""
                 QProgressBar {{
-                    border: 1px solid #222222; border-radius: 4px;
-                    background: #1a1a1a; max-height: 4px;
+                    border: none; border-radius: 2px;
+                    background: #1a1a1a; max-height: 3px;
                 }}
-                QProgressBar::chunk {{
-                    background-color: {color}; border-radius: 3px;
-                }}
+                QProgressBar::chunk {{ background-color: {color}; border-radius: 2px; }}
             """)
-            bar.setFormat(f"{label_text}: %v (%p%)")
             setattr(self, attr, bar)
             bwl.addWidget(bar)
             dist_vbox.addWidget(bar_wrap)
 
-        # Totals row
-        dist_vbox.addSpacing(4)
         totals_row = QHBoxLayout()
-        totals_row.setSpacing(18)
-
-        total_col = QVBoxLayout()
+        totals_row.setSpacing(14)
         self._lbl_total_dist = QLabel("0")
         self._lbl_total_dist.setStyleSheet(
-            "color: #ffffff; font-size: 22px; font-weight: 700; background: transparent; line-height: 1;"
+            "color: #ffffff; font-size: 20px; font-weight: 700; background: transparent;"
         )
-        total_col.addWidget(self._lbl_total_dist)
         lbl_total_label = QLabel("TOTAL")
         lbl_total_label.setStyleSheet("font-size: 10px; color: #333333; background: transparent;")
-        total_col.addWidget(lbl_total_label)
-        totals_row.addLayout(total_col)
+        tc = QVBoxLayout()
+        tc.setSpacing(0)
+        tc.addWidget(self._lbl_total_dist)
+        tc.addWidget(lbl_total_label)
+        totals_row.addLayout(tc)
 
-        receita_col = QVBoxLayout()
         self._lbl_receita_dist = QLabel("R$ 0,00")
         self._lbl_receita_dist.setStyleSheet(
-            "color: #2d8a52; font-size: 14px; font-weight: 700; background: transparent;"
+            "color: #2d8a52; font-size: 13px; font-weight: 700; background: transparent;"
         )
-        receita_col.addWidget(self._lbl_receita_dist)
         lbl_receita_label = QLabel("RECEITA ANUAL")
         lbl_receita_label.setStyleSheet("font-size: 10px; color: #333333; background: transparent;")
-        receita_col.addWidget(lbl_receita_label)
-        totals_row.addLayout(receita_col)
+        rc = QVBoxLayout()
+        rc.setSpacing(0)
+        rc.addWidget(self._lbl_receita_dist)
+        rc.addWidget(lbl_receita_label)
+        totals_row.addLayout(rc)
         totals_row.addStretch()
         dist_vbox.addLayout(totals_row)
 
-        details_row.addWidget(recent_card)
-        details_row.addWidget(dist_card)
+        right_col.addWidget(dist_card)
+
+        # ── PIZZA POR FAIXA ──
+        belt_card = QFrame()
+        belt_card.setObjectName("beltCard")
+        belt_card.setStyleSheet("""
+            QFrame#beltCard { background: #161616; border-radius: 10px; border: 1px solid #222222; }
+        """)
+        belt_vbox = QVBoxLayout(belt_card)
+        belt_vbox.setContentsMargins(14, 10, 14, 10)
+        belt_vbox.setSpacing(6)
+
+        title_belt = QLabel("ALUNOS POR FAIXA")
+        title_belt.setStyleSheet(
+            "color: #444444; font-size: 11px; font-weight: 500; letter-spacing: 0.5px; background: transparent;"
+        )
+        belt_vbox.addWidget(title_belt)
+
+        self._belt_chart = PieChartWidget()
+        self._belt_chart.setStyleSheet("background: transparent;")
+        self._belt_chart.setMinimumHeight(260)
+        belt_vbox.addWidget(self._belt_chart, 1)
+
+        right_col.addWidget(belt_card)
+
+        details_row.addWidget(recent_card, 3)
+        right_col_widget = QWidget()
+        right_col_widget.setStyleSheet("background: transparent;")
+        right_col_widget.setLayout(right_col)
+        details_row.addWidget(right_col_widget, 2)
         layout.addLayout(details_row)
 
     def _stat_card(self, title, count, value, accent, badge_text="", badge_color=""):
@@ -360,80 +509,155 @@ class DashboardTab(BaseTab):
         try:
             self.metricas = obter_metricas_dashboard()
             try:
-                all_students = listar_todos_alunos()
-                recent = sorted(
-                    [s for s in all_students if s[16]],
-                    key=lambda x: x[16], reverse=True
-                )[:4]
-                self.metricas['recent_students'] = [
-                    {'nome': s[1], 'faixa': s[8], 'status': s[15]} for s in recent
-                ]
-            except Exception:
+                try:
+                    status_mes = obter_status_pagamento_mes()
+                except Exception:
+                    status_mes = {}
+
+                mapped = []
+                for a in listar_todos_alunos():
+                    resp_id = a[18] if len(a) > 18 else None
+                    tipo = "dependentes" if resp_id else "adultos"
+                    mapped.append({
+                        'nome': a[1],
+                        'faixa': a[8] or 'Branca',
+                        'plano': a[12] or '',
+                        'status': a[15],
+                        'tipo': tipo,
+                        'pagamento_status': status_mes.get(a[0], ''),
+                    })
+                _conn = get_conn()
+                _cur = _conn.cursor()
+                _cur.execute("SELECT * FROM kids WHERE ativo=1")
+                for k in _cur.fetchall():
+                    mapped.append({
+                        'nome': k[1],
+                        'faixa': k[10] or 'Branca',
+                        'plano': k[14] or '',
+                        'status': k[17],
+                        'tipo': 'kids',
+                        'pagamento_status': status_mes.get(-k[0], ''),
+                    })
+                _conn.close()
+                mapped_sorted = sorted(mapped, key=lambda x: (x.get('nome') or '').lower())
+                self.metricas['all_students_list'] = mapped_sorted
+                self.metricas['recent_students'] = mapped_sorted
+                belt_counts = {}
+                for s in mapped_sorted:
+                    faixa = (s.get('faixa') or 'Branca').strip()
+                    belt_counts[faixa] = belt_counts.get(faixa, 0) + 1
+                self.metricas['belt_distribution'] = belt_counts
+            except Exception as ex:
+                print(f"Dashboard students error: {ex}")
                 self.metricas['recent_students'] = []
+                self.metricas['belt_distribution'] = {}
             self.update_metrics()
         except Exception as e:
             print(f"Dashboard load error: {e}")
             if not self._is_testing_environment():
                 show_error(self, "Erro", f"Erro ao carregar dashboard: {str(e)}")
 
-    def _make_recent_row(self, dados):
+    def _make_student_row(self, dados):
         row = QFrame()
-        row.setObjectName("recentRow")
+        row.setObjectName("tableRow")
         row.setStyleSheet("""
-            QFrame#recentRow {
+            QFrame#tableRow {
                 background: transparent;
                 border: none;
-                border-bottom: 1px solid #1c1c1c;
+                border-bottom: 1px solid #181818;
             }
+            QFrame#tableRow:hover { background: #1a1a1a; }
         """)
-        row.setFixedHeight(38)
+        row.setFixedHeight(50)
+
         rl = QHBoxLayout(row)
-        rl.setContentsMargins(0, 6, 0, 6)
-        rl.setSpacing(9)
+        rl.setContentsMargins(14, 0, 10, 0)
+        rl.setSpacing(0)
 
-        initials = ''.join(w[0].upper() for w in (dados.get('nome') or '?').split()[:2])
-        avatar = QLabel(initials)
-        avatar.setFixedSize(28, 28)
-        avatar.setAlignment(Qt.AlignCenter)
-        avatar.setStyleSheet(
-            "background: #1a1a1a; border: 1px solid #252525; border-radius: 14px;"
-            " color: #666666; font-size: 9px; font-weight: 500;"
+        lbl_nome = QLabel(dados.get('nome', ''))
+        lbl_nome.setStyleSheet(
+            "font-size: 13px; color: #ffffff; background: transparent; border: none;"
         )
-        rl.addWidget(avatar)
+        rl.addWidget(lbl_nome, 1)
 
-        nome_lbl = QLabel((dados.get('nome') or '')[:22])
-        nome_lbl.setStyleSheet("font-size: 12px; color: #bbbbbb; background: transparent; border: none;")
-        rl.addWidget(nome_lbl, 1)
-
-        _BELT_COLORS = {
+        belt_wrap = QWidget()
+        belt_wrap.setObjectName("beltWrap")
+        belt_wrap.setFixedWidth(100)
+        belt_wrap.setStyleSheet("#beltWrap { background: transparent; }")
+        bwl = QHBoxLayout(belt_wrap)
+        bwl.setContentsMargins(0, 0, 0, 0)
+        bwl.setSpacing(6)
+        _BELT_C = {
             "Branca": "#d0d0d0", "Azul": "#1a4fa0",
-            "Roxa": "#6b2fa0", "Marrom": "#6b3a1f", "Preta": "#111111",
+            "Roxa": "#6b2fa0", "Marrom": "#8b4a1f", "Preta": "#111111",
         }
         faixa = dados.get('faixa', 'Branca')
-        bcolor = _BELT_COLORS.get(faixa, "#888888")
-        border_s = "border: 1px solid #555555;" if faixa == "Preta" else ""
-        belt = QLabel()
-        belt.setFixedSize(26, 6)
-        belt.setStyleSheet(f"background: {bcolor}; border-radius: 2px; {border_s}")
-        rl.addWidget(belt)
-
-        dot = QLabel()
-        dot.setFixedSize(5, 5)
-        dot.setStyleSheet(
-            f"background: {'#1a7a3c' if dados.get('status') else '#cc1e1e'}; border-radius: 2px;"
+        bcolor = _BELT_C.get(faixa, "#888888")
+        border_s = "border: 1px solid #555555;" if faixa == "Preta" else "border: none;"
+        belt_rect = QLabel()
+        belt_rect.setFixedSize(26, 7)
+        belt_rect.setStyleSheet(f"background: {bcolor}; border-radius: 2px; {border_s}")
+        bwl.addWidget(belt_rect)
+        belt_name = QLabel(faixa)
+        belt_name.setStyleSheet(
+            "font-size: 10px; color: #555555; background: transparent; border: none;"
         )
-        rl.addWidget(dot)
+        bwl.addWidget(belt_name)
+        bwl.addStretch()
+        rl.addWidget(belt_wrap)
+
+        lbl_plano = QLabel(dados.get('plano') or '')
+        lbl_plano.setFixedWidth(100)
+        lbl_plano.setStyleSheet(
+            "font-size: 10px; color: #555555; background: transparent; border: none;"
+        )
+        rl.addWidget(lbl_plano)
         return row
 
-    def _update_recent_students(self, students):
+    def _get_filtered(self):
+        all_s = self.metricas.get('all_students_list', [])
+        if self._filter == "todos":
+            filtered = all_s
+        else:
+            filtered = [s for s in all_s if s.get('tipo') == self._filter]
+        return filtered
+
+    def _apply_filter(self, key):
+        self._filter = key
+        active, inactive = self._pill_styles
+        for k, btn in self._filter_btns.items():
+            btn.setStyleSheet(active if k == key else inactive)
+        self._refresh_list()
+
+    def _refresh_list(self):
+        shown = self._get_filtered()
+        self._render_student_list(shown)
+        if hasattr(self, '_belt_chart'):
+            belt_counts = {}
+            for s in shown:
+                faixa = (s.get('faixa') or 'Branca').strip()
+                belt_counts[faixa] = belt_counts.get(faixa, 0) + 1
+            belt_order = ["Branca", "Azul", "Roxa", "Marrom", "Preta"]
+            pie_data = [(b, belt_counts.get(b, 0), _BELT_COLORS.get(b, "#555555"))
+                        for b in belt_order if belt_counts.get(b, 0) > 0]
+            for b, count in belt_counts.items():
+                if b not in belt_order and count > 0:
+                    pie_data.append((b, count, "#555555"))
+            self._belt_chart.set_data(pie_data)
+
+    def _render_student_list(self, students):
         if not hasattr(self, '_recent_list_layout'):
             return
         while self._recent_list_layout.count():
             item = self._recent_list_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        for d in students[:4]:
-            self._recent_list_layout.addWidget(self._make_recent_row(d))
+        for d in students:
+            self._recent_list_layout.addWidget(self._make_student_row(d))
+
+    def _update_recent_students(self, students):
+        shown = self._get_filtered() if self.metricas.get('all_students_list') else students
+        self._render_student_list(shown)
 
     def _fmt_brl(self, v):
         return f"R$ {v:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
@@ -519,3 +743,15 @@ class DashboardTab(BaseTab):
 
         if hasattr(self, '_recent_list_layout') and 'recent_students' in self.metricas:
             self._update_recent_students(self.metricas['recent_students'])
+
+        if hasattr(self, '_belt_chart') and 'belt_distribution' in self.metricas:
+            belt_order = ["Branca", "Azul", "Roxa", "Marrom", "Preta"]
+            bd = self.metricas['belt_distribution']
+            pie_data = [
+                (b, bd.get(b, 0), _BELT_COLORS.get(b, "#555555"))
+                for b in belt_order if bd.get(b, 0) > 0
+            ]
+            for b, count in bd.items():
+                if b not in belt_order and count > 0:
+                    pie_data.append((b, count, "#555555"))
+            self._belt_chart.set_data(pie_data)

@@ -1,9 +1,15 @@
 """
-Testes para a lógica de ativação/inativação de alunos 
+Testes para a lógica de ativação/inativação de alunos
 (testando apenas a lógica sem componentes de UI)
 """
 import pytest
 from unittest.mock import Mock, patch
+
+# Pre-cache com PySide6 real antes que outros módulos de teste mockeem globalmente
+try:
+    from ui.alunos_tab import AlunosTab as _AlunosTab  # noqa: F401
+except Exception:
+    _AlunosTab = None
 
 
 class TestToggleStatusLogic:
@@ -52,7 +58,7 @@ class TestToggleStatusLogic:
         # Verificar que encontrou apenas 1 dependente
         assert len(dependentes_afetados) == 1
     
-    @patch('database.db.inativar_aluno')
+    @patch('ui.alunos_tab.inativar_aluno')
     def test_executar_inativacao_aluno_adulto_logic(self, mock_inativar_aluno):
         """Teste da lógica de inativação para aluno adulto"""
         from ui.alunos_tab import AlunosTab

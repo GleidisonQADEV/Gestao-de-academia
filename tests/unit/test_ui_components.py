@@ -43,7 +43,7 @@ class TestAppDialog:
         
         result = show_warning(None, "Título", "Mensagem")
         
-        mock_app_dialog.assert_called_once_with("⚠️  Título", "Mensagem", ("OK",), None)
+        mock_app_dialog.assert_called_once_with("Título", "Mensagem", ("OK",), None)
         assert result == "OK"
     
     @patch('ui.app_dialog.AppDialog')
@@ -56,7 +56,7 @@ class TestAppDialog:
         
         result = show_error(None, "Título", "Mensagem")
         
-        mock_app_dialog.assert_called_once_with("❌ Título", "Mensagem", ("OK",), None)
+        mock_app_dialog.assert_called_once_with("Título", "Mensagem", ("OK",), None)
         assert result == "OK"
     
     @patch('ui.app_dialog.AppDialog')
@@ -69,7 +69,7 @@ class TestAppDialog:
         
         result = show_question(None, "Título", "Mensagem")
         
-        mock_app_dialog.assert_called_once_with("❓ Título", "Mensagem", ("Sim", "Não"), None)
+        mock_app_dialog.assert_called_once_with("Título", "Mensagem", ("Sim", "Não"), None)
         assert result is True
     
     @patch('ui.app_dialog.AppDialog')
