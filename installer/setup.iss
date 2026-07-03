@@ -3,7 +3,9 @@
 
 #define AppName      "Legacy BJJ"
 #define AppPublisher "Legacy BJJ"
-#define AppVersion   "1.0.0"
+#ifndef AppVersion
+  #define AppVersion "1.0.0"
+#endif
 #define AppExe       "LegacyBJJ.exe"
 
 [Setup]
@@ -32,7 +34,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Criar atalho na Área de Trabalho"; GroupDescription: "Ícones adicionais:"; Flags: checkedonce
 
 [Files]
-Source: "..\dist\LegacyBJJ\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; O spec gera um executavel unico (onefile), portanto empacotamos so o .exe.
+Source: "..\dist\LegacyBJJ.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}";        Filename: "{app}\{#AppExe}"; IconFilename: "{app}\{#AppExe}"

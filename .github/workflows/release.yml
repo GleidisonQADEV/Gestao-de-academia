@@ -53,14 +53,20 @@ jobs:
       - name: Build exe
         run: pyinstaller LegacyBJJ.spec
 
-      - name: Rename exe
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
         shell: bash
-        run: mv dist/LegacyBJJ.exe "dist/LegacyBJJ-${{ github.ref_name }}-windows.exe"
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          iscc "/DAppVersion=$VERSION" installer/setup.iss
 
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-exe
-          path: dist/LegacyBJJ-*-windows.exe
+          name: windows-installer
+          path: dist/LegacyBJJ-*-windows-setup.exe
 
   release:
     needs: [build-macos, build-windows]
@@ -75,7 +81,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: windows-exe
+          name: windows-installer
           path: artifacts/
 
       - name: Create GitHub Release
@@ -92,4 +98,4 @@ jobs:
 
             ### Instalação
             **macOS**: abra o `.dmg` e arraste o app para Applications.
-            **Windows**: execute o `.exe` diretamente, sem instalação necessária.
+            **Windows**: execute o instalador `.exe` e siga o assistente (cria atalhos e desinstalador).
