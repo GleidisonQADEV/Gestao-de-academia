@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/ --ignore=venv -v)",
+      "Bash(bash run.sh)",
+      "Read(//Users/gleidison.nascimento/Downloads/**)"
+    ]
+  }
+}
