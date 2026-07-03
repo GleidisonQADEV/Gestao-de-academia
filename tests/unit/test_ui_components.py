@@ -6,7 +6,13 @@ from unittest.mock import MagicMock, patch, call
 import sys
 import os
 
-# Mock do PySide6 antes de importar UI components
+# Mock do PySide6 antes de importar UI components.
+# Guardamos os módulos reais para restaurá-los logo em seguida, evitando que o
+# mock vaze para outros arquivos de teste (o que quebraria os testes que usam o
+# Qt real e poderia causar segmentation fault).
+_PYSIDE_KEYS = ['PySide6', 'PySide6.QtWidgets', 'PySide6.QtCore', 'PySide6.QtGui']
+_real_pyside_modules = {k: sys.modules.get(k) for k in _PYSIDE_KEYS}
+
 sys.modules['PySide6'] = MagicMock()
 sys.modules['PySide6.QtWidgets'] = MagicMock()
 sys.modules['PySide6.QtCore'] = MagicMock()
@@ -14,6 +20,14 @@ sys.modules['PySide6.QtGui'] = MagicMock()
 
 # Importar depois do mock
 from ui.app_dialog import show_info, show_warning, show_error, show_question, show_input
+
+# Restaurar imediatamente os módulos reais do PySide6 para não poluir o estado
+# global compartilhado entre os testes.
+for _k, _v in _real_pyside_modules.items():
+    if _v is not None:
+        sys.modules[_k] = _v
+    else:
+        sys.modules.pop(_k, None)
 
 
 class TestAppDialog:

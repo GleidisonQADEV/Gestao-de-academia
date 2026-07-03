@@ -28,17 +28,31 @@ class _FakeQThread:
     def start(self): pass
 
 
-# Injeta stubs ANTES de importar updater
+# Injeta stubs ANTES de importar updater.
+# Guardamos os módulos reais do PySide6 para restaurá-los logo após o import,
+# evitando que o mock vaze para outros arquivos de teste (o que quebraria os
+# testes que usam o Qt real e poderia causar segmentation fault).
 _fake_qtcore = MagicMock()
 _fake_qtcore.QThread = _FakeQThread
 _fake_qtcore.Signal = _FakeSignal
 _fake_qtcore.QObject = object
+
+_PYSIDE_KEYS = ['PySide6', 'PySide6.QtCore']
+_real_pyside_modules = {k: sys.modules.get(k) for k in _PYSIDE_KEYS}
 
 sys.modules['PySide6'] = MagicMock()
 sys.modules['PySide6.QtCore'] = _fake_qtcore
 
 # Agora é seguro importar
 from ui.updater import UpdateChecker, _parse_version  # noqa: E402
+
+# Restaurar imediatamente os módulos reais do PySide6 para não poluir o estado
+# global compartilhado entre os testes.
+for _k, _v in _real_pyside_modules.items():
+    if _v is not None:
+        sys.modules[_k] = _v
+    else:
+        sys.modules.pop(_k, None)
 
 import pytest
 
