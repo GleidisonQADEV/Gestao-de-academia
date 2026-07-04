@@ -12,12 +12,41 @@ from ui.app_dialog import show_info, show_error, show_question
 
 
 _BELT_COLORS = {
-    "Branca": "#cccccc",
-    "Azul":   "#1a4fa0",
-    "Roxa":   "#6b2fa0",
-    "Marrom": "#7a4a20",
-    "Preta":  "#444444",
+    # Kids
+    "Branca":  "#e8e8e8",
+    "Cinza":   "#8a8a8a",
+    "Amarela": "#f2c200",
+    "Laranja": "#e67e22",
+    "Verde":   "#2e9e4f",
+    # Adulto
+    "Azul":    "#1a4fa0",
+    "Roxa":    "#6b2fa0",
+    "Marrom":  "#7a4a20",
+    "Preta":   "#444444",
 }
+
+# Ordem de exibição no gráfico (inclui variantes Kids c/b e c/p).
+_BELT_ORDER = [
+    "Branca",
+    "Cinza c/b", "Cinza", "Cinza c/p",
+    "Amarela c/b", "Amarela", "Amarela c/p",
+    "Laranja c/b", "Laranja", "Laranja c/p",
+    "Verde c/b", "Verde", "Verde c/p",
+    "Azul", "Roxa", "Marrom", "Preta",
+]
+
+
+def _belt_color(faixa: str) -> str:
+    """Resolve a cor da faixa, cobrindo variantes Kids (ex.: 'Amarela c/b')."""
+    if not faixa:
+        return "#555555"
+    if faixa in _BELT_COLORS:
+        return _BELT_COLORS[faixa]
+    faixa_l = faixa.lower()
+    for base, col in _BELT_COLORS.items():
+        if base.lower() in faixa_l:
+            return col
+    return "#555555"
 
 
 class PieChartWidget(QWidget):
@@ -637,12 +666,12 @@ class DashboardTab(BaseTab):
             for s in shown:
                 faixa = (s.get('faixa') or 'Branca').strip()
                 belt_counts[faixa] = belt_counts.get(faixa, 0) + 1
-            belt_order = ["Branca", "Azul", "Roxa", "Marrom", "Preta"]
-            pie_data = [(b, belt_counts.get(b, 0), _BELT_COLORS.get(b, "#555555"))
+            belt_order = _BELT_ORDER
+            pie_data = [(b, belt_counts.get(b, 0), _belt_color(b))
                         for b in belt_order if belt_counts.get(b, 0) > 0]
             for b, count in belt_counts.items():
                 if b not in belt_order and count > 0:
-                    pie_data.append((b, count, "#555555"))
+                    pie_data.append((b, count, _belt_color(b)))
             self._belt_chart.set_data(pie_data)
 
     def _render_student_list(self, students):
@@ -745,13 +774,13 @@ class DashboardTab(BaseTab):
             self._update_recent_students(self.metricas['recent_students'])
 
         if hasattr(self, '_belt_chart') and 'belt_distribution' in self.metricas:
-            belt_order = ["Branca", "Azul", "Roxa", "Marrom", "Preta"]
+            belt_order = _BELT_ORDER
             bd = self.metricas['belt_distribution']
             pie_data = [
-                (b, bd.get(b, 0), _BELT_COLORS.get(b, "#555555"))
+                (b, bd.get(b, 0), _belt_color(b))
                 for b in belt_order if bd.get(b, 0) > 0
             ]
             for b, count in bd.items():
                 if b not in belt_order and count > 0:
-                    pie_data.append((b, count, "#555555"))
+                    pie_data.append((b, count, _belt_color(b)))
             self._belt_chart.set_data(pie_data)

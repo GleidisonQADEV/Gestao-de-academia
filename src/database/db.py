@@ -1,8 +1,40 @@
 import sqlite3
 import os
+import sys
+import shutil
+
+
+def _resolver_db_path() -> str:
+    """Retorna o caminho do banco em um diretório de dados persistente por-usuário.
+
+    No executável onefile do PyInstaller, a pasta do módulo (__file__) fica dentro
+    de um diretório temporário que é apagado ao fechar o app — o que fazia os dados
+    cadastrados sumirem. Guardamos o banco fora desse temporário.
+    """
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+    elif sys.platform == "darwin":
+        base = os.path.join(os.path.expanduser("~"), "Library", "Application Support")
+    else:
+        base = os.environ.get("XDG_DATA_HOME") or os.path.join(
+            os.path.expanduser("~"), ".local", "share"
+        )
+    data_dir = os.path.join(base, "LegacyBJJ")
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, "legacy_bjj.db")
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "legacy_bjj.db")
+DB_PATH = _resolver_db_path()
+
+# Migração única: se ainda não existe banco persistente mas há um antigo ao lado
+# do módulo (instalações/execuções anteriores), copia para preservar os dados.
+_LEGACY_DB = os.path.join(BASE_DIR, "legacy_bjj.db")
+if not os.path.exists(DB_PATH) and os.path.exists(_LEGACY_DB):
+    try:
+        shutil.copy2(_LEGACY_DB, DB_PATH)
+    except Exception:
+        pass
 
 
 # ---------------- CONEXÃO ----------------

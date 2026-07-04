@@ -10,27 +10,17 @@ from PySide6.QtGui import QPixmap, QColor, QIcon
 
 from database.db import init_db
 from database.kids_db import init_kids_db
-from ui.version_config import get_version, set_version
 from ui.updater import UpdateChecker, Downloader, open_installer
 from ui.app_dialog import show_question, show_error, show_info
 from version import APP_VERSION, GITHUB_REPO
 
 from ui.login_window import LoginWindow
 
-_VERSION = get_version()
-
-if _VERSION == "V0":
-    from ui.alunos_tab_v0 import AlunosTab
-    from ui.dashboard_tab_v0 import DashboardTab
-    from ui.cadastro_aluno_tab_v0 import CadastroAlunoTab
-    from ui.financeiro_tab_v0 import FinanceiroTab
-    from ui.config_tab_v0 import ConfigTab
-else:
-    from ui.alunos_tab import AlunosTab
-    from ui.dashboard_tab import DashboardTab
-    from ui.cadastro_aluno_tab import CadastroAlunoTab
-    from ui.financeiro_tab import FinanceiroTab
-    from ui.config_tab import ConfigTab
+from ui.alunos_tab import AlunosTab
+from ui.dashboard_tab import DashboardTab
+from ui.cadastro_aluno_tab import CadastroAlunoTab
+from ui.financeiro_tab import FinanceiroTab
+from ui.config_tab import ConfigTab
 
 
 _MENU_GROUPS = [
@@ -229,52 +219,6 @@ class MainWindow(QWidget):
         footer_layout.setContentsMargins(0, 0, 0, 0)
         footer_layout.setSpacing(0)
 
-        # ── VERSION TOGGLE ──
-        version_row = QWidget()
-        version_row.setStyleSheet("background: transparent;")
-        version_row_layout = QHBoxLayout(version_row)
-        version_row_layout.setContentsMargins(14, 6, 14, 6)
-        version_row_layout.setSpacing(6)
-
-        lbl_ver = QLabel("Versão")
-        lbl_ver.setStyleSheet(
-            "color:#2e2e2e; font-size:10px; font-weight:500; background:transparent;"
-        )
-        version_row_layout.addWidget(lbl_ver)
-        version_row_layout.addStretch()
-
-        def _ver_btn(text, is_active):
-            b = QPushButton(text)
-            b.setFixedSize(34, 22)
-            b.setCursor(Qt.PointingHandCursor)
-            if is_active:
-                b.setStyleSheet("""
-                    QPushButton {
-                        background: #cc1e1e; color: #ffffff;
-                        border: none; border-radius: 4px;
-                        font-size: 10px; font-weight: 700;
-                    }
-                """)
-            else:
-                b.setStyleSheet("""
-                    QPushButton {
-                        background: #1a1a1a; color: #444444;
-                        border: 1px solid #252525; border-radius: 4px;
-                        font-size: 10px; font-weight: 500;
-                    }
-                    QPushButton:hover { color: #888888; background: #1e1e1e; }
-                """)
-            return b
-
-        self.btn_v0 = _ver_btn("V0", _VERSION == "V0")
-        self.btn_v1 = _ver_btn("V1", _VERSION == "V1")
-        self.btn_v0.clicked.connect(lambda: self.trocar_versao("V0"))
-        self.btn_v1.clicked.connect(lambda: self.trocar_versao("V1"))
-
-        version_row_layout.addWidget(self.btn_v0)
-        version_row_layout.addWidget(self.btn_v1)
-        footer_layout.addWidget(version_row)
-
         _sair_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
         btn_sair = QPushButton("  Sair")
         btn_sair.setIcon(_make_nav_icon(_sair_svg, color="#333333", size=14))
@@ -366,14 +310,6 @@ class MainWindow(QWidget):
             self.dashboard_tab.load()
         elif idx == 3:
             self.financeiro_tab.load()
-
-    def trocar_versao(self, versao):
-        if versao == _VERSION:
-            return
-        if show_question(self, "Trocar Versão",
-                         f"Deseja trocar para {versao}? O app será reiniciado.", "Sim", "Cancelar"):
-            set_version(versao)
-            os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def _iniciar_checagem_update(self):
         self._checker = UpdateChecker(APP_VERSION, GITHUB_REPO, parent=self)

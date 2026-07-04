@@ -2,8 +2,11 @@ import sqlite3
 import os
 import time
 
+from database.db import _resolver_db_path
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "legacy_bjj.db")
+# Mesmo banco persistente usado por db.py (compartilham o arquivo).
+DB_PATH = _resolver_db_path()
 
 
 # ---------------- CONEXÃO ----------------

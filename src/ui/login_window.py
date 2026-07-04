@@ -101,6 +101,10 @@ class LoginWindow(QWidget):
             QPushButton:pressed{ background-color: #a01515; }
         """)
         btn_login.clicked.connect(self.login)
+
+        # Permite logar pressionando Enter em qualquer um dos campos.
+        self.user_input.returnPressed.connect(self.login)
+        self.pass_input.returnPressed.connect(self.login)
         
         # ----- Botão Restaurar Senha -----
         btn_restaurar = QPushButton("🔄 Restaurar Senha Padrão")
