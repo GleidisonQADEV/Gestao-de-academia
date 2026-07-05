@@ -38,6 +38,27 @@ QLabel {
 }
 """
 
+# ================= CORES DAS FAIXAS =================
+_BELT_COLORS_MAP = {
+    "Branca": "#d0d0d0", "Cinza": "#8a8a8a", "Amarela": "#f2c200",
+    "Laranja": "#e67e22", "Verde": "#2e9e4f",
+    "Azul": "#1a4fa0", "Roxa": "#6b2fa0", "Marrom": "#8b4a1f", "Preta": "#111111",
+}
+
+
+def cor_faixa(faixa):
+    """Cor da faixa cobrindo variantes Kids (ex.: 'Amarela c/b')."""
+    if not faixa:
+        return "#888888"
+    if faixa in _BELT_COLORS_MAP:
+        return _BELT_COLORS_MAP[faixa]
+    fl = faixa.lower()
+    for base, col in _BELT_COLORS_MAP.items():
+        if base.lower() in fl:
+            return col
+    return "#888888"
+
+
 # ================= CARD CRACHÁ =================
 class AlunoCard(QFrame):
     def __init__(self):
@@ -223,13 +244,9 @@ class AlunoCard(QFrame):
             if altura: extras.append(f"{altura}cm")
             faixa_info += f" ({'/'.join(extras)})"
         self.lbl_faixa.setText(faixa_info)
-        _BELT_COLORS = {
-            "Branca": ("#d0d0d0", False), "Azul": ("#1a4fa0", False),
-            "Roxa": ("#6b2fa0", False), "Marrom": ("#6b3a1f", False),
-            "Preta": ("#111111", True),
-        }
         faixa_key = dados.get('faixa', 'Branca')
-        belt_color, needs_border = _BELT_COLORS.get(faixa_key, ("#888888", False))
+        belt_color = cor_faixa(faixa_key)
+        needs_border = faixa_key == "Preta"
         border_str = "border: 1px solid #555555;" if needs_border else ""
         self.lbl_belt_color.setStyleSheet(
             f"background: {belt_color}; border-radius: 2px; {border_str}"
@@ -620,7 +637,7 @@ class AlunosTab(BaseTab):
             "Roxa": "#6b2fa0", "Marrom": "#8b4a1f", "Preta": "#111111",
         }
         faixa = dados.get('faixa', 'Branca')
-        bcolor = _BELT_COLORS.get(faixa, "#888888")
+        bcolor = cor_faixa(faixa)
         border_s = "border: 1px solid #555555;" if faixa == "Preta" else "border: none;"
         belt_rect = QLabel()
         belt_rect.setFixedSize(30, 7)
