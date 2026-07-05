@@ -1,5 +1,5 @@
 import os
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QFrame, QHBoxLayout, QLineEdit
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QFrame, QHBoxLayout, QLineEdit, QComboBox
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
 
@@ -244,4 +244,77 @@ def show_input(parent, title, message, placeholder=""):
     dialog = InputDialog(title, message, placeholder, parent)
     if dialog.exec() == QDialog.DialogCode.Accepted:
         return dialog.get_text()
+    return "", False
+
+
+class ComboDialog(QDialog):
+    def __init__(self, title, message, options, default=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.selected = ""
+        self.accepted_input = False
+
+        self.setStyleSheet("#comboDialog { background: #111111; }")
+        self.setObjectName("comboDialog")
+
+        main = QVBoxLayout(self)
+        main.setContentsMargins(24, 22, 24, 20)
+        main.setSpacing(14)
+
+        lbl = QLabel(message)
+        lbl.setWordWrap(True)
+        lbl.setStyleSheet("font-size:13px; color:#cccccc; background:transparent; border:none;")
+        main.addWidget(lbl)
+
+        self.combo = QComboBox()
+        self.combo.addItems(list(options))
+        self.combo.setFixedHeight(40)
+        self.combo.setStyleSheet("""
+            QComboBox {
+                background-color: #0e0e0e; padding: 8px 10px;
+                border-radius: 8px; border: 1px solid #1e1e1e;
+                font-size: 13px; color: #ffffff;
+            }
+            QComboBox:focus { border: 1.5px solid #cc1e1e; }
+            QComboBox QAbstractItemView {
+                background-color: #0e0e0e; border: 1px solid #cc1e1e;
+                selection-background-color: #cc1e1e; selection-color: white;
+                color: #cccccc; outline: none;
+            }
+        """)
+        if default:
+            idx = self.combo.findText(default)
+            if idx >= 0:
+                self.combo.setCurrentIndex(idx)
+        main.addWidget(self.combo)
+
+        btns = QHBoxLayout()
+        btns.setSpacing(10)
+        btns.addStretch()
+        b_cancel = QPushButton("Cancelar")
+        b_cancel.setCursor(Qt.PointingHandCursor)
+        b_cancel.setStyleSheet(_BTN_SECONDARY)
+        b_cancel.clicked.connect(self.reject)
+        b_ok = QPushButton("OK")
+        b_ok.setCursor(Qt.PointingHandCursor)
+        b_ok.setStyleSheet(_BTN_PRIMARY)
+        b_ok.clicked.connect(self._ok)
+        btns.addWidget(b_cancel)
+        btns.addWidget(b_ok)
+        main.addLayout(btns)
+
+        self.resize(420, 200)
+
+    def _ok(self):
+        self.selected = self.combo.currentText()
+        self.accepted_input = True
+        self.accept()
+
+
+def show_combo(parent, title, message, options, default=None):
+    """Mostra um seletor (combo). Retorna (valor, ok)."""
+    dialog = ComboDialog(title, message, options, default, parent)
+    if dialog.exec() == QDialog.DialogCode.Accepted:
+        return dialog.selected, dialog.accepted_input
     return "", False

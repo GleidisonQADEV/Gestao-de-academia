@@ -9,9 +9,9 @@ from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap, QPalette, QBrush
 
 from ui.base_tab import BaseTab
-from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes, atualizar_mensalidades_por_plano, definir_plano_aluno, gerar_mensalidades_anuais
+from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes, atualizar_mensalidades_por_plano, definir_plano_aluno, gerar_mensalidades_anuais, get_planos_formatados
 from database.kids_db import get_conn, atualizar_kid, cpf_kid_existe
-from ui.app_dialog import show_info, show_warning, show_error, show_question, show_custom, show_input
+from ui.app_dialog import show_info, show_warning, show_error, show_question, show_custom, show_input, show_combo
 
 # ================= ESTILOS CSS =================
 campo_nome_style = """
@@ -826,10 +826,13 @@ class AlunosTab(BaseTab):
             show_warning(self, "Definir plano", "Nenhum aluno selecionado.")
             return
 
-        plano, ok = show_input(
+        opcoes = [p for p in get_planos_formatados() if p != "Plano Personalizado"]
+        if "Adulto - R$180" not in opcoes:
+            opcoes.insert(0, "Adulto - R$180")
+        plano, ok = show_combo(
             self, "Definir plano",
             f"Plano a aplicar aos {len(selecionados)} aluno(s) selecionado(s):",
-            "Adulto - R$180"
+            opcoes, default="Adulto - R$180"
         )
         if not ok or not plano.strip():
             return

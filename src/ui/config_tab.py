@@ -6,8 +6,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from .base_tab import BaseTab, SCROLLBAR_STYLE
 from .change_password_dialog import ChangePasswordDialog
-from .app_dialog import show_info, show_error, show_question, show_input
-from database.db import listar_planos, criar_plano, atualizar_plano, excluir_plano, plano_existe
+from .app_dialog import show_info, show_error, show_question, show_input, show_combo
+from database.db import listar_planos, criar_plano, atualizar_plano, excluir_plano, plano_existe, get_planos_formatados
 
 
 class ConfigTab(BaseTab):
@@ -261,10 +261,13 @@ class ConfigTab(BaseTab):
         if not ok or not url.strip():
             return
 
-        plano_padrao, _ = show_input(
+        opcoes = [p for p in get_planos_formatados() if p != "Plano Personalizado"]
+        if "Adulto - R$180" not in opcoes:
+            opcoes.insert(0, "Adulto - R$180")
+        plano_padrao, _ = show_combo(
             self, "Plano padrão",
-            "Plano a aplicar aos alunos importados (a planilha não traz plano).",
-            "Adulto - R$180"
+            "Plano a aplicar aos alunos importados (a planilha não traz plano):",
+            opcoes, default="Adulto - R$180"
         )
         plano_padrao = (plano_padrao or "").strip() or "Adulto - R$180"
 
