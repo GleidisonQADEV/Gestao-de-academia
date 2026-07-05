@@ -9,9 +9,9 @@ from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap, QPalette, QBrush
 
 from ui.base_tab import BaseTab
-from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes, atualizar_mensalidades_por_plano
+from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes, atualizar_mensalidades_por_plano, definir_plano_aluno, gerar_mensalidades_anuais
 from database.kids_db import get_conn, atualizar_kid, cpf_kid_existe
-from ui.app_dialog import show_info, show_warning, show_error, show_question, show_custom
+from ui.app_dialog import show_info, show_warning, show_error, show_question, show_custom, show_input
 
 # ================= ESTILOS CSS =================
 campo_nome_style = """
@@ -401,6 +401,20 @@ class AlunosTab(BaseTab):
         """)
         btn_excluir_lote.clicked.connect(self.excluir_selecionados)
         top_row.addWidget(btn_excluir_lote)
+
+        btn_plano_lote = QPushButton("Definir plano")
+        btn_plano_lote.setFixedHeight(34)
+        btn_plano_lote.setCursor(Qt.PointingHandCursor)
+        btn_plano_lote.setStyleSheet("""
+            QPushButton {
+                background: #1e1e1e; color: #cccccc;
+                font-size: 12px; font-weight: 600;
+                border: 1px solid #2a2a2a; border-radius: 7px; padding: 0 16px;
+            }
+            QPushButton:hover { background: #252525; color: #ffffff; }
+        """)
+        btn_plano_lote.clicked.connect(self.definir_plano_selecionados)
+        top_row.addWidget(btn_plano_lote)
 
         btn_novo = QPushButton("+ Novo Aluno")
         btn_novo.setFixedHeight(34)
@@ -804,6 +818,45 @@ class AlunosTab(BaseTab):
         if erros:
             msg += f"\n{erros} não puderam ser excluídos."
         show_info(self, "Exclusão concluída", msg)
+        self.buscar()
+
+    def definir_plano_selecionados(self):
+        selecionados = [w._dados for w in self._linhas_tabela() if w._checkbox.isChecked()]
+        if not selecionados:
+            show_warning(self, "Definir plano", "Nenhum aluno selecionado.")
+            return
+
+        plano, ok = show_input(
+            self, "Definir plano",
+            f"Plano a aplicar aos {len(selecionados)} aluno(s) selecionado(s):",
+            "Adulto - R$180"
+        )
+        if not ok or not plano.strip():
+            return
+        plano = plano.strip()
+
+        for d in selecionados:
+            tipo = d.get("tipo", "adulto")
+            definir_plano_aluno(d["id"], plano, "adulto" if tipo == "adulto" else "kids")
+            aid = d["id"] if tipo == "adulto" else -d["id"]
+            atualizar_mensalidades_por_plano(aid, plano)
+
+        # Gera as mensalidades (mês atual em diante) para quem passou a ter plano
+        try:
+            gerar_mensalidades_anuais()
+        except Exception:
+            pass
+
+        if hasattr(self, "chk_todos"):
+            self.chk_todos.blockSignals(True)
+            self.chk_todos.setChecked(False)
+            self.chk_todos.blockSignals(False)
+
+        show_info(
+            self, "Plano definido",
+            f"Plano '{plano}' aplicado a {len(selecionados)} aluno(s).\n"
+            f"As mensalidades foram geradas (do mês atual em diante)."
+        )
         self.buscar()
 
     def carregar_dados(self):

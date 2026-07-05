@@ -688,6 +688,18 @@ def atualizar_mensalidades_por_plano(aluno_id, plano_str):
     return atualizadas
 
 
+def definir_plano_aluno(aluno_id, plano_str, tipo="adulto"):
+    """Define o plano de um aluno (adulto ou kid) diretamente."""
+    conn = get_conn()
+    cur = conn.cursor()
+    if tipo == "adulto":
+        cur.execute("UPDATE alunos SET plano=? WHERE id=?", (plano_str, aluno_id))
+    else:
+        cur.execute("UPDATE kids SET plano=? WHERE id=?", (plano_str, aluno_id))
+    conn.commit()
+    conn.close()
+
+
 def obter_frequencia_media_mes(ano=None, mes=None):
     """Frequência média (%) dos alunos ativos no mês, sobre 44 aulas.
 
