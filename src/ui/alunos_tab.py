@@ -1876,7 +1876,14 @@ class EdicaoAlunoDialog(QDialog):
     def setup_ui(self):
         self.setWindowTitle(f"Editar Aluno")
         self.setModal(True)
-        self.setFixedSize(760, 860)
+        # Tamanho adaptado à tela (evita o rodapé ficar fora em telas menores)
+        from PySide6.QtGui import QGuiApplication
+        _scr = QGuiApplication.primaryScreen()
+        _avail = _scr.availableGeometry() if _scr else None
+        _w = min(760, (_avail.width() - 60) if _avail else 760)
+        _h = min(860, (_avail.height() - 80) if _avail else 860)
+        self.setMinimumSize(600, 420)
+        self.resize(_w, _h)
         self.setObjectName("editDialog")
         self.setStyleSheet("""
             #editDialog { background: #111111; }
@@ -2269,12 +2276,12 @@ class EdicaoAlunoDialog(QDialog):
         btn_layout.addStretch()
         btn_layout.addWidget(btn_cancelar_edicao)
         btn_layout.addWidget(btn_salvar)
-        
-        form.addLayout(btn_layout)
-        
-        # Adicionar wrapper centralizado ao scroll
+
+        # Conteúdo rolável (formulário) e rodapé fixo com os botões,
+        # para que "Salvar" fique sempre visível.
         scroll_area.setWidget(wrapper)
-        main_layout.addWidget(scroll_area)
+        main_layout.addWidget(scroll_area, 1)
+        main_layout.addLayout(btn_layout)
         
     def preencher_dados(self):
         """Preenche os campos com os dados atuais do aluno"""
