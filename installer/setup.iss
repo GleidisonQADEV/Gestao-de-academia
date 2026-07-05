@@ -13,7 +13,8 @@ AppId={{A7F3C2D1-4B8E-4F1A-9C2D-3E5F6A7B8C9D}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
-DefaultDirName={autopf}\LegacyBJJ
+; Instalação por-usuário (sem admin/UAC): sempre no mesmo local, atualização limpa.
+DefaultDirName={localappdata}\Programs\LegacyBJJ
 DefaultGroupName={#AppName}
 OutputDir=..\dist
 OutputBaseFilename=LegacyBJJ-{#AppVersion}-windows-setup
@@ -22,9 +23,10 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
 UninstallDisplayIcon={app}\{#AppExe}
 MinVersion=10.0
+; Evita duas execuções simultâneas do instalador
+SetupMutex=LegacyBJJSetupMutex
 ; Fecha o app em execução automaticamente (necessário na atualização silenciosa)
 CloseApplications=force
 RestartApplications=no
