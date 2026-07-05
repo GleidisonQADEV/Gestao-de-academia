@@ -127,6 +127,30 @@ def _conv_data(valor: str) -> str:
     return v
 
 
+# Conectores que ficam em minúsculas no meio do nome
+_NOME_MINUSCULAS = {"de", "da", "do", "das", "dos", "e", "di", "du", "del", "la"}
+
+
+def _norm_nome(valor: str) -> str:
+    """Padroniza o nome: espaços colapsados e capitalização (Title Case pt-BR)."""
+    v = " ".join((valor or "").split())
+    if not v:
+        return v
+    palavras = v.lower().split(" ")
+    out = []
+    for i, p in enumerate(palavras):
+        if i > 0 and p in _NOME_MINUSCULAS:
+            out.append(p)
+        else:
+            out.append(p[:1].upper() + p[1:] if p else p)
+    return " ".join(out)
+
+
+# Plano padrão aplicado na importação quando a planilha não traz plano.
+PLANO_PADRAO = "Adulto - R$180"
+
+
+
 
 def _ids_da_url(url: str):
     """Extrai (sheet_id, gid) de uma URL do Google Sheets."""
@@ -229,10 +253,13 @@ def _cpf_ja_existe(cpf: str) -> bool:
 def importar_alunos_de_url(url: str, plano_padrao: str = None):
     """Baixa a planilha e cadastra os alunos.
 
-    ``plano_padrao`` é usado quando a planilha não tem coluna de plano.
+    ``plano_padrao`` é usado quando a planilha não tem coluna de plano
+    (padrão: ``Adulto - R$180``).
     Retorna um dicionário com o resumo:
         {'importados': int, 'ignorados': int, 'erros': [str, ...], 'total': int}
     """
+    if not plano_padrao:
+        plano_padrao = PLANO_PADRAO
     conteudo = _baixar_csv_robusto(url)
 
     leitor = csv.reader(io.StringIO(conteudo))
@@ -270,7 +297,7 @@ def importar_alunos_de_url(url: str, plano_padrao: str = None):
         if not any((c or "").strip() for c in linha):
             continue  # linha em branco
 
-        nome = _val(linha, "nome")
+        nome = _norm_nome(_val(linha, "nome"))
         if not nome:
             ignorados += 1
             continue

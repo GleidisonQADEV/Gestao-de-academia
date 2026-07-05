@@ -185,7 +185,7 @@ class DashboardTab(BaseTab):
         _date_str = f"{_hoje.day} de {_MESES_PT[_hoje.month - 1]}, {_hoje.year}"
         date_label = QLabel(_date_str)
         date_label.setStyleSheet(
-            "color: #333333; font-size: 11px; background: transparent;"
+            "color: #9a9a9a; font-size: 11px; background: transparent;"
         )
         top.addWidget(date_label)
 
@@ -206,7 +206,7 @@ class DashboardTab(BaseTab):
         btn_reload.setFixedHeight(30)
         btn_reload.setStyleSheet("""
             QPushButton {
-                background: #161616; color: #666666;
+                background: #161616; color: #b0b0b0;
                 font-size: 11px; font-weight: 500;
                 border: 1px solid #222222; border-radius: 6px; padding: 6px 12px;
             }
@@ -280,7 +280,7 @@ class DashboardTab(BaseTab):
         recent_header = QHBoxLayout()
         title_recent = QLabel("ALUNOS")
         title_recent.setStyleSheet(
-            "color: #444444; font-size: 11px; font-weight: 500; letter-spacing: 0.5px; background: transparent;"
+            "color: #a5a5a5; font-size: 11px; font-weight: 500; letter-spacing: 0.5px; background: transparent;"
         )
         recent_header.addWidget(title_recent)
         recent_header.addStretch()
@@ -295,7 +295,7 @@ class DashboardTab(BaseTab):
         """
         _pill_style_inactive = """
             QPushButton {
-                background: #1a1a1a; color: #555555;
+                background: #1a1a1a; color: #a0a0a0;
                 border: 1px solid #222222; border-radius: 4px;
                 font-size: 9px; font-weight: 500; padding: 2px 8px;
             }
@@ -351,7 +351,7 @@ class DashboardTab(BaseTab):
 
         title_dist = QLabel("DISTRIBUIÇÃO DE ALUNOS")
         title_dist.setStyleSheet(
-            "color: #444444; font-size: 11px; font-weight: 500; letter-spacing: 0.5px; background: transparent;"
+            "color: #a5a5a5; font-size: 11px; font-weight: 500; letter-spacing: 0.5px; background: transparent;"
         )
         dist_vbox.addWidget(title_dist)
 
@@ -374,12 +374,12 @@ class DashboardTab(BaseTab):
 
             bar_header = QHBoxLayout()
             lbl_name = QLabel(label_text)
-            lbl_name.setStyleSheet("color: #444444; font-size: 10px; background: transparent;")
+            lbl_name.setStyleSheet("color: #a5a5a5; font-size: 10px; background: transparent;")
             bar_header.addWidget(lbl_name)
             bar_header.addStretch()
             self.__dict__[f"_pct_{attr}"] = QLabel("0%")
             self.__dict__[f"_pct_{attr}"].setStyleSheet(
-                "color: #444444; font-size: 10px; background: transparent;"
+                "color: #a5a5a5; font-size: 10px; background: transparent;"
             )
             bar_header.addWidget(self.__dict__[f"_pct_{attr}"])
             bwl.addLayout(bar_header)
@@ -405,7 +405,7 @@ class DashboardTab(BaseTab):
             "color: #ffffff; font-size: 20px; font-weight: 700; background: transparent;"
         )
         lbl_total_label = QLabel("TOTAL")
-        lbl_total_label.setStyleSheet("font-size: 10px; color: #333333; background: transparent;")
+        lbl_total_label.setStyleSheet("font-size: 10px; color: #9a9a9a; background: transparent;")
         tc = QVBoxLayout()
         tc.setSpacing(0)
         tc.addWidget(self._lbl_total_dist)
@@ -417,7 +417,7 @@ class DashboardTab(BaseTab):
             "color: #2d8a52; font-size: 13px; font-weight: 700; background: transparent;"
         )
         lbl_receita_label = QLabel("RECEITA ANUAL")
-        lbl_receita_label.setStyleSheet("font-size: 10px; color: #333333; background: transparent;")
+        lbl_receita_label.setStyleSheet("font-size: 10px; color: #9a9a9a; background: transparent;")
         rc = QVBoxLayout()
         rc.setSpacing(0)
         rc.addWidget(self._lbl_receita_dist)
@@ -440,7 +440,7 @@ class DashboardTab(BaseTab):
 
         title_belt = QLabel("ALUNOS POR FAIXA")
         title_belt.setStyleSheet(
-            "color: #444444; font-size: 11px; font-weight: 500; letter-spacing: 0.5px; background: transparent;"
+            "color: #a5a5a5; font-size: 11px; font-weight: 500; letter-spacing: 0.5px; background: transparent;"
         )
         belt_vbox.addWidget(title_belt)
 
@@ -477,7 +477,7 @@ class DashboardTab(BaseTab):
         lbl_title = QLabel(title.upper())
         lbl_title.setWordWrap(True)
         lbl_title.setStyleSheet(
-            "color: #444444; font-size: 10px; font-weight: 400; letter-spacing: 0.5px;"
+            "color: #a5a5a5; font-size: 10px; font-weight: 400; letter-spacing: 0.5px;"
             " background: transparent; border: none;"
         )
 
@@ -489,7 +489,7 @@ class DashboardTab(BaseTab):
 
         lbl_value = QLabel(value)
         lbl_value.setStyleSheet(
-            "color: #3a3a3a; font-size: 10px; background: transparent; border: none;"
+            "color: #9a9a9a; font-size: 10px; background: transparent; border: none;"
         )
 
         vlyt.addWidget(lbl_title)
@@ -653,7 +653,7 @@ class DashboardTab(BaseTab):
         bwl.addWidget(belt_rect)
         belt_name = QLabel(faixa)
         belt_name.setStyleSheet(
-            "font-size: 10px; color: #555555; background: transparent; border: none;"
+            "font-size: 10px; color: #a0a0a0; background: transparent; border: none;"
         )
         bwl.addWidget(belt_name)
         bwl.addStretch()
@@ -662,7 +662,7 @@ class DashboardTab(BaseTab):
         lbl_plano = QLabel(dados.get('plano') or '')
         lbl_plano.setFixedWidth(100)
         lbl_plano.setStyleSheet(
-            "font-size: 10px; color: #555555; background: transparent; border: none;"
+            "font-size: 10px; color: #a0a0a0; background: transparent; border: none;"
         )
         rl.addWidget(lbl_plano)
 

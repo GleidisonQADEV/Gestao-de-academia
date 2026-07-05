@@ -126,7 +126,7 @@ class FinanceiroTab(BaseTab):
             }
             QTabBar::tab {
                 background: #161616;
-                color: #444444;
+                color: #a0a0a0;
                 padding: 3px 10px;
                 margin-right: 4px;
                 border-radius: 5px;
@@ -200,7 +200,7 @@ class FinanceiroTab(BaseTab):
 
         _btn_disabled = """
             QPushButton:disabled {
-                background: #1a1a1a; color: #333333; border: 1px solid #222222;
+                background: #1a1a1a; color: #b0b0b0; border: 1px solid #222222;
             }
         """
         self.btn_editar = QPushButton("Editar")
@@ -273,7 +273,7 @@ class FinanceiroTab(BaseTab):
         if plano:
             lbl_plano = QLabel(plano)
             lbl_plano.setStyleSheet(
-                "font-size: 10px; color: #333333; background: transparent; margin-bottom: 5px;"
+                "font-size: 10px; color: #9a9a9a; background: transparent; margin-bottom: 5px;"
             )
             info.addWidget(lbl_plano)
 
@@ -823,7 +823,7 @@ class FinanceiroTab(BaseTab):
                 label = QLabel("Nenhuma mensalidade encontrada para este mês.")
                 label.setObjectName("emptyLabel")
                 label.setStyleSheet(
-                    "#emptyLabel { color: #333333; font-size: 13px; background: transparent; border: none; }"
+                    "#emptyLabel { color: #9a9a9a; font-size: 13px; background: transparent; border: none; }"
                 )
                 label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 layout.addWidget(label)

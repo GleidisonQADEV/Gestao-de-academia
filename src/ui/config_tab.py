@@ -67,7 +67,7 @@ class ConfigTab(BaseTab):
         row_senha = QHBoxLayout()
         lbl_senha_desc = QLabel("Altere a senha de acesso ao sistema")
         lbl_senha_desc.setStyleSheet(
-            "color:#555555; font-size:12px; background:transparent; border:none;"
+            "color:#9a9a9a; font-size:12px; background:transparent; border:none;"
         )
         row_senha.addWidget(lbl_senha_desc)
         row_senha.addStretch()
@@ -130,7 +130,7 @@ class ConfigTab(BaseTab):
 
         lbl_planos_desc = QLabel("Gerencie os planos disponíveis para cadastro de alunos")
         lbl_planos_desc.setStyleSheet(
-            "color:#555555; font-size:11px; background:transparent; border:none;"
+            "color:#9a9a9a; font-size:11px; background:transparent; border:none;"
         )
         sec_planos_layout.addWidget(lbl_planos_desc)
 
@@ -187,7 +187,7 @@ class ConfigTab(BaseTab):
         if descricao:
             desc = QLabel(descricao)
             desc.setWordWrap(True)
-            desc.setStyleSheet("color:#555555; font-size:11px; background:transparent; border:none;")
+            desc.setStyleSheet("color:#9a9a9a; font-size:11px; background:transparent; border:none;")
             vbox.addWidget(desc)
 
         return frame, vbox
@@ -262,11 +262,11 @@ class ConfigTab(BaseTab):
             return
 
         plano_padrao, _ = show_input(
-            self, "Plano padrão (opcional)",
-            "Plano a aplicar aos alunos importados (deixe em branco se a planilha já tiver).",
-            "ex.: Adulto - R$180"
+            self, "Plano padrão",
+            "Plano a aplicar aos alunos importados (a planilha não traz plano).",
+            "Adulto - R$180"
         )
-        plano_padrao = (plano_padrao or "").strip() or None
+        plano_padrao = (plano_padrao or "").strip() or "Adulto - R$180"
 
         try:
             from utils.sheets_import import importar_alunos_de_url
@@ -327,7 +327,7 @@ class ConfigTab(BaseTab):
                 sem_planos = QLabel("Nenhum plano cadastrado")
                 sem_planos.setObjectName("emptyLabel")
                 sem_planos.setStyleSheet(
-                    "#emptyLabel { color:#333333; font-size:13px; background:transparent; border:none; }"
+                    "#emptyLabel { color:#9a9a9a; font-size:13px; background:transparent; border:none; }"
                 )
                 sem_planos.setAlignment(Qt.AlignCenter)
                 self.cards_layout.addWidget(sem_planos)
@@ -521,7 +521,7 @@ class PlanoDialog(QDialog):
 
         lbl_dica = QLabel("Digite 0 para plano gratuito")
         lbl_dica.setStyleSheet(
-            "color:#333333; font-size:11px; font-style:italic; background:transparent; border:none;"
+            "color:#9a9a9a; font-size:11px; font-style:italic; background:transparent; border:none;"
         )
         form_layout.addRow("", lbl_dica)
 

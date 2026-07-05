@@ -146,7 +146,7 @@ class LoginWindow(QWidget):
         btn_restaurar.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
-                color: #555555;
+                color: #a0a0a0;
                 border-radius: 6px;
                 font-size: 12px;
                 border: 1px solid #2a2a2a;

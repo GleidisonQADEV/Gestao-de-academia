@@ -300,7 +300,7 @@ class AlunoCard(QFrame):
                 self.foto.setAlignment(Qt.AlignCenter)
                 self.foto.setStyleSheet(
                     "background: #1a1a1a; border: 1px solid #252525; border-radius: 14px;"
-                    " color: #666666; font-size: 9px; font-weight: 600;"
+                    " color: #a0a0a0; font-size: 9px; font-weight: 600;"
                 )
         else:
             self.foto.clear()
@@ -309,7 +309,7 @@ class AlunoCard(QFrame):
             self.foto.setAlignment(Qt.AlignCenter)
             self.foto.setStyleSheet(
                 "background: #1a1a1a; border: 1px solid #252525; border-radius: 14px;"
-                " color: #666666; font-size: 9px; font-weight: 600;"
+                " color: #a0a0a0; font-size: 9px; font-weight: 600;"
             )
             
         # Aviso de vínculo para dependentes
@@ -388,6 +388,20 @@ class AlunosTab(BaseTab):
         btn_export.clicked.connect(self.exportar_lista_pdf)
         top_row.addWidget(btn_export)
 
+        btn_excluir_lote = QPushButton("Excluir selecionados")
+        btn_excluir_lote.setFixedHeight(34)
+        btn_excluir_lote.setCursor(Qt.PointingHandCursor)
+        btn_excluir_lote.setStyleSheet("""
+            QPushButton {
+                background: #2a1414; color: #e06666;
+                font-size: 12px; font-weight: 600;
+                border: 1px solid #5a1a1a; border-radius: 7px; padding: 0 16px;
+            }
+            QPushButton:hover { background: #3a1a1a; color: #ff8080; }
+        """)
+        btn_excluir_lote.clicked.connect(self.excluir_selecionados)
+        top_row.addWidget(btn_excluir_lote)
+
         btn_novo = QPushButton("+ Novo Aluno")
         btn_novo.setFixedHeight(34)
         btn_novo.setStyleSheet("""
@@ -428,7 +442,7 @@ class AlunosTab(BaseTab):
         self.combo_faixa.setStyleSheet("""
             QComboBox {
                 background: #161616; border: 1px solid #1e1e1e;
-                border-radius: 7px; color: #444444;
+                border-radius: 7px; color: #a0a0a0;
                 font-size: 11px; padding: 0 8px;
             }
             QComboBox::drop-down { border: none; width: 20px; }
@@ -466,7 +480,22 @@ class AlunosTab(BaseTab):
         header_layout.setContentsMargins(12, 0, 12, 0)
         header_layout.setSpacing(0)
 
-        _HS = "font-size:9px; color:#333333; letter-spacing:1px; background:transparent; border:none;"
+        _CHK_STYLE = (
+            "QCheckBox { background: transparent; }"
+            " QCheckBox::indicator { width:15px; height:15px; border:1px solid #444444;"
+            " border-radius:3px; background:#0e0e0e; }"
+            " QCheckBox::indicator:checked { background:#cc1e1e; border-color:#cc1e1e; }"
+        )
+        self._chk_style = _CHK_STYLE
+        self.chk_todos = QCheckBox()
+        self.chk_todos.setFixedWidth(30)
+        self.chk_todos.setCursor(Qt.PointingHandCursor)
+        self.chk_todos.setStyleSheet(_CHK_STYLE)
+        self.chk_todos.setToolTip("Selecionar todos")
+        self.chk_todos.stateChanged.connect(self._toggle_selecionar_todos)
+        header_layout.addWidget(self.chk_todos)
+
+        _HS = "font-size:9px; color:#8f8f8f; letter-spacing:1px; background:transparent; border:none;"
         lh_nome = QLabel("NOME")
         lh_nome.setStyleSheet(_HS)
         header_layout.addWidget(lh_nome, 1)
@@ -546,8 +575,16 @@ class AlunosTab(BaseTab):
         row.setFixedHeight(56)
 
         rl = QHBoxLayout(row)
-        rl.setContentsMargins(16, 0, 12, 0)
+        rl.setContentsMargins(12, 0, 12, 0)
         rl.setSpacing(0)
+
+        # Checkbox de seleção em lote
+        chk = QCheckBox()
+        chk.setFixedWidth(30)
+        chk.setCursor(Qt.PointingHandCursor)
+        chk.setStyleSheet(getattr(self, "_chk_style", ""))
+        row._checkbox = chk
+        rl.addWidget(chk)
 
         # Name
         lbl_nome = QLabel(dados.get('nome', ''))
@@ -577,7 +614,7 @@ class AlunosTab(BaseTab):
         bwl.addWidget(belt_rect)
         belt_name = QLabel(faixa)
         belt_name.setStyleSheet(
-            "font-size: 11px; color: #555555; background: transparent; border: none;"
+            "font-size: 11px; color: #a0a0a0; background: transparent; border: none;"
         )
         bwl.addWidget(belt_name)
         bwl.addStretch()
@@ -588,7 +625,7 @@ class AlunosTab(BaseTab):
         lbl_plano = QLabel(plano_text)
         lbl_plano.setFixedWidth(140)
         lbl_plano.setStyleSheet(
-            "font-size: 11px; color: #555555; background: transparent; border: none;"
+            "font-size: 11px; color: #a0a0a0; background: transparent; border: none;"
         )
         rl.addWidget(lbl_plano)
 
@@ -599,7 +636,7 @@ class AlunosTab(BaseTab):
             'Atrasado': ("background: rgba(204,30,30,0.15);  color: #c04444;", "Atrasado"),
             'A Vencer': ("background: rgba(184,124,14,0.15); color: #a07020;", "A Vencer"),
         }
-        s_style, s_text = _STATUS_STYLES.get(pag_status, ("background: transparent; color: #333333;", "—"))
+        s_style, s_text = _STATUS_STYLES.get(pag_status, ("background: transparent; color: #9a9a9a;", "—"))
         status_lbl = QLabel(s_text)
         status_lbl.setFixedWidth(90)
         status_lbl.setStyleSheet(
@@ -711,6 +748,63 @@ class AlunosTab(BaseTab):
             return
         from ui.export_helpers import exportar_pdf_dialog
         exportar_pdf_dialog(self, "ficha", aluno_id=self.aluno_atual["id"])
+
+    def _linhas_tabela(self):
+        """Retorna os widgets de linha (que têm checkbox e _dados)."""
+        linhas = []
+        if not hasattr(self, "cards_layout"):
+            return linhas
+        for i in range(self.cards_layout.count()):
+            w = self.cards_layout.itemAt(i).widget()
+            if w is not None and hasattr(w, "_checkbox") and hasattr(w, "_dados"):
+                linhas.append(w)
+        return linhas
+
+    def _toggle_selecionar_todos(self, estado):
+        marcar = bool(estado)
+        for w in self._linhas_tabela():
+            w._checkbox.setChecked(marcar)
+
+    def excluir_selecionados(self):
+        selecionados = [w._dados for w in self._linhas_tabela() if w._checkbox.isChecked()]
+        if not selecionados:
+            show_warning(self, "Excluir selecionados", "Nenhum aluno selecionado.")
+            return
+
+        if not show_question(
+            self, "🗑️  Confirmar Exclusão em Lote",
+            f"ATENÇÃO: esta ação não pode ser desfeita!\n\n"
+            f"Deseja excluir {len(selecionados)} aluno(s) selecionado(s)?",
+            "Sim, Excluir", "Cancelar"
+        ):
+            return
+
+        erros = 0
+        for d in selecionados:
+            try:
+                if d.get("tipo") == "adulto":
+                    excluir_aluno(d["id"])
+                else:
+                    conn = get_conn()
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM kids WHERE id=?", (d["id"],))
+                    conn.commit()
+                    conn.close()
+            except Exception:
+                erros += 1
+
+        if hasattr(self, "chk_todos"):
+            self.chk_todos.blockSignals(True)
+            self.chk_todos.setChecked(False)
+            self.chk_todos.blockSignals(False)
+        self.aluno_atual = None
+
+        excluidos = len(selecionados) - erros
+        msg = f"{excluidos} aluno(s) excluído(s) com sucesso."
+        if erros:
+            msg += f"\n{erros} não puderam ser excluídos."
+        show_info(self, "Exclusão concluída", msg)
+        self.buscar()
 
     def carregar_dados(self):
         self.registros.clear()
@@ -874,7 +968,7 @@ class AlunosTab(BaseTab):
         info_layout = QVBoxLayout()
         
         nome_label = QLabel(dados["nome"])
-        nome_label.setStyleSheet("font-size:13px;font-weight:bold;color:#333;")
+        nome_label.setStyleSheet("font-size:13px;font-weight:bold;color:#e0e0e0;")
         
         detalhes = f"CPF: {dados.get('cpf', 'N/A')} • {dados['faixa']} {dados['grau']} • {dados['plano']}"
         if dados.get("responsavel"):
@@ -1729,7 +1823,7 @@ class EdicaoAlunoDialog(QDialog):
         main_layout.addWidget(title)
         subtitle = QLabel(self.dados_aluno['nome'])
         subtitle.setStyleSheet(
-            "color: #444444; font-size: 11px; background: transparent; border: none; margin-bottom: 10px;"
+            "color: #a0a0a0; font-size: 11px; background: transparent; border: none; margin-bottom: 10px;"
         )
         main_layout.addWidget(subtitle)
 
@@ -1847,7 +1941,7 @@ class EdicaoAlunoDialog(QDialog):
         
         legenda = QLabel("* Campos obrigatórios")
         legenda.setStyleSheet(
-            "color: #444444; font-size: 10px; background: transparent; border: none; margin-bottom: 4px;"
+            "color: #9a9a9a; font-size: 10px; background: transparent; border: none; margin-bottom: 4px;"
         )
         form.addWidget(legenda, alignment=Qt.AlignLeft)
         
@@ -1992,7 +2086,7 @@ class EdicaoAlunoDialog(QDialog):
                 background: #161616;
                 border-radius: 6px;
                 border: 1px solid #222222;
-                color: #555555;
+                color: #a0a0a0;
             }
         """)
         self.foto_label.setAlignment(Qt.AlignCenter)

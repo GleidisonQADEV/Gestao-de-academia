@@ -138,7 +138,7 @@ class MainWindow(QWidget):
         subtitle_label = QLabel("Centro de Treinamento")
         subtitle_label.setAlignment(Qt.AlignCenter)
         subtitle_label.setStyleSheet("""
-            color: #444444;
+            color: #9a9a9a;
             font-size: 10px;
             font-weight: 400;
             letter-spacing: 0.5px;
@@ -155,7 +155,7 @@ class MainWindow(QWidget):
         def section_label(text):
             lbl = QLabel(text)
             lbl.setStyleSheet("""
-                color: #2e2e2e;
+                color: #8a8a8a;
                 font-size: 10px;
                 font-weight: 500;
                 letter-spacing: 1.5px;
@@ -180,7 +180,7 @@ class MainWindow(QWidget):
                     padding: 9px 16px;
                     font-size: 13px;
                     font-weight: 400;
-                    color: #555555;
+                    color: #b5b5b5;
                     background: transparent;
                     border-radius: 0px;
                 }
@@ -237,7 +237,7 @@ class MainWindow(QWidget):
                 padding: 9px 16px;
                 font-size: 12px;
                 font-weight: 400;
-                color: #333333;
+                color: #b5b5b5;
                 background: transparent;
                 border-radius: 0px;
             }

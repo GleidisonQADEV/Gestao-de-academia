@@ -171,14 +171,14 @@ class FichaAlunoDialog(QDialog):
         v.setContentsMargins(14, 12, 14, 12)
         v.setSpacing(2)
         t = QLabel(titulo)
-        t.setStyleSheet("color:#555555; font-size:10px; font-weight:600; background:transparent; border:none;")
+        t.setStyleSheet("color:#9a9a9a; font-size:10px; font-weight:600; background:transparent; border:none;")
         val = QLabel(str(valor))
         val.setStyleSheet(f"color:{cor}; font-size:22px; font-weight:700; background:transparent; border:none;")
         v.addWidget(t)
         v.addWidget(val)
         if sub:
             s = QLabel(sub)
-            s.setStyleSheet("color:#666666; font-size:10px; background:transparent; border:none;")
+            s.setStyleSheet("color:#8f8f8f; font-size:10px; background:transparent; border:none;")
             v.addWidget(s)
         return card
 
@@ -189,7 +189,7 @@ class FichaAlunoDialog(QDialog):
         rl.setContentsMargins(0, 6, 0, 6)
         lbl_r = QLabel(rotulo)
         lbl_r.setFixedWidth(150)
-        lbl_r.setStyleSheet("color:#666666; font-size:12px; background:transparent; border:none;")
+        lbl_r.setStyleSheet("color:#9a9a9a; font-size:12px; background:transparent; border:none;")
         lbl_v = QLabel(str(valor) if valor not in (None, "") else "-")
         lbl_v.setWordWrap(True)
         lbl_v.setStyleSheet("color:#dddddd; font-size:13px; background:transparent; border:none;")

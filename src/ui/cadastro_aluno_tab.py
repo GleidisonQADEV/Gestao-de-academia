@@ -98,7 +98,7 @@ class CadastroAlunoTab(BaseTab):
             label.setFixedWidth(LABEL_W)
             label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             label.setStyleSheet(
-                "color: #555555; font-size: 12px; background: transparent; border: none;"
+                "color: #b0b0b0; font-size: 12px; background: transparent; border: none;"
             )
 
             h.addWidget(label)
@@ -144,7 +144,7 @@ class CadastroAlunoTab(BaseTab):
 
         legenda = QLabel("* Campos obrigatórios")
         legenda.setStyleSheet(
-            "color:#444444; font-size:10px; background:transparent; border:none; margin-bottom:4px;"
+            "color:#9a9a9a; font-size:10px; background:transparent; border:none; margin-bottom:4px;"
         )
         form.addWidget(legenda, alignment=Qt.AlignLeft)
 
@@ -363,7 +363,7 @@ class CadastroAlunoTab(BaseTab):
         self.btn_vincular.setFixedSize(180, 38)
         self.btn_vincular.setStyleSheet("""
             QPushButton {
-                background: transparent; color: #555555;
+                background: transparent; color: #b0b0b0;
                 border: 1px solid #2a2a2a; border-radius: 7px;
                 font-size: 12px; font-weight: 500;
             }
