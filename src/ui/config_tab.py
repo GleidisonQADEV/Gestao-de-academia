@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from .base_tab import BaseTab, SCROLLBAR_STYLE
 from .change_password_dialog import ChangePasswordDialog
-from .app_dialog import show_info, show_error, show_question
+from .app_dialog import show_info, show_error, show_question, show_input
 from database.db import listar_planos, criar_plano, atualizar_plano, excluir_plano, plano_existe
 
 
