@@ -563,7 +563,9 @@ def gerar_mensalidades_anuais(ano=None):
     
     if ano is None:
         ano = date.today().year
-    
+
+    hoje = date.today()
+
     conn = get_conn()
     cur = conn.cursor()
     
@@ -576,6 +578,9 @@ def gerar_mensalidades_anuais(ano=None):
     for aluno_id, nome, plano in alunos:
         # Gerar mensalidades para todos os 12 meses do ano
         for mes in range(1, 13):
+            # Não criar mensalidades para meses anteriores ao vigente
+            if ano == hoje.year and mes < hoje.month:
+                continue
             # Verificar se já tem mensalidade no mês
             cur.execute("""
                 SELECT COUNT(*) FROM mensalidades 
@@ -606,6 +611,9 @@ def gerar_mensalidades_anuais(ano=None):
     for kid_id, nome, plano in kids:
         # Gerar mensalidades para todos os 12 meses do ano
         for mes in range(1, 13):
+            # Não criar mensalidades para meses anteriores ao vigente
+            if ano == hoje.year and mes < hoje.month:
+                continue
             # Verificar se já tem mensalidade no mês
             cur.execute("""
                 SELECT COUNT(*) FROM mensalidades
@@ -636,10 +644,89 @@ def gerar_mensalidades_anuais(ano=None):
     return mensalidades_criadas
 
 
+def _extrair_valor_plano(plano_str):
+    """Extrai o valor (float) de uma string de plano tipo 'Adulto - R$180'.
+
+    Retorna 0.0 para bolsista/patrocinado e None se não achar valor.
+    """
+    import re
+    if not plano_str:
+        return None
+    s = str(plano_str).lower()
+    if "bolsist" in s or "patrocinad" in s:
+        return 0.0
+    m = re.search(r"r\$\s*(\d+(?:[.,]\d+)?)", s)
+    if m:
+        return float(m.group(1).replace(",", "."))
+    return None
+
+
+def atualizar_mensalidades_por_plano(aluno_id, plano_str):
+    """Atualiza o valor das mensalidades PENDENTES (do mês atual em diante) ao trocar o plano.
+
+    Para kids, passe o id negativo (-kid_id). Retorna a quantidade atualizada.
+    """
+    from datetime import date
+
+    valor = _extrair_valor_plano(plano_str)
+    if valor is None:
+        return 0
+
+    hoje = date.today()
+    inicio_mes = date(hoje.year, hoje.month, 1).isoformat()
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE mensalidades
+        SET valor = ?
+        WHERE aluno_id = ? AND status = 'PENDENTE' AND data_vencimento >= ?
+    """, (valor, aluno_id, inicio_mes))
+    atualizadas = cur.rowcount
+    conn.commit()
+    conn.close()
+    return atualizadas
+
+
+def obter_frequencia_media_mes(ano=None, mes=None):
+    """Frequência média (%) dos alunos ativos no mês, sobre 44 aulas.
+
+    Retorna (media_percentual, total_alunos, total_presencas).
+    """
+    from datetime import date
+
+    hoje = date.today()
+    ano = ano or hoje.year
+    mes = mes or hoje.month
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            (SELECT COUNT(*) FROM alunos WHERE ativo = 1 AND responsavel_id IS NULL) +
+            (SELECT COUNT(*) FROM kids WHERE ativo = 1)
+    """)
+    total_alunos = cur.fetchone()[0] or 0
+
+    cur.execute("""
+        SELECT COUNT(*) FROM registros_presenca
+        WHERE strftime('%Y', data_registro) = ?
+          AND strftime('%m', data_registro) = ?
+    """, (str(ano), f"{mes:02d}"))
+    total_presencas = cur.fetchone()[0] or 0
+    conn.close()
+
+    if total_alunos <= 0:
+        return 0.0, 0, total_presencas
+    media = (total_presencas / (total_alunos * AULAS_POR_MES)) * 100
+    return round(min(media, 100.0), 1), total_alunos, total_presencas
+
+
 def obter_metricas_dashboard():
     """Obtém métricas para dashboard financeiro"""
     from datetime import date, timedelta
-    
+
     conn = get_conn()
     cur = conn.cursor()
     

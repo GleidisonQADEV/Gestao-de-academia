@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont
 
 from ui.base_tab import BaseTab, SCROLLBAR_STYLE
-from database.db import obter_metricas_dashboard, gerar_mensalidades_anuais, listar_todos_alunos, obter_status_pagamento_mes, get_conn
+from database.db import obter_metricas_dashboard, gerar_mensalidades_anuais, listar_todos_alunos, obter_status_pagamento_mes, obter_frequencia_media_mes, get_conn
 from ui.app_dialog import show_info, show_error, show_question
 
 
@@ -252,9 +252,11 @@ class DashboardTab(BaseTab):
         self.card_atrasadas  = self._stat_card("Mensalidades Atrasadas", "0", "R$ 0,00", "#cc1e1e", "Requer atenção", "red")
         self.card_pagas      = self._stat_card("Pagas no Mês",           "0", "R$ 0,00", "#1a7a3c", _pagas_badge,     "green")
         self.card_vencer     = self._stat_card("A Vencer (30 Dias)",     "0", "R$ 0,00", "#b87c0e", "Próximos 30d",   "amber")
+        self.card_freq_media = self._stat_card("Frequência Média (Mês)",  "--", "0 presenças",  "#6b2fa0", "Análise de presença", "purple")
         row1.addWidget(self.card_atrasadas)
         row1.addWidget(self.card_pagas)
         row1.addWidget(self.card_vencer)
+        row1.addWidget(self.card_freq_media)
         layout.addLayout(row1)
 
         # row2 cards kept as attributes for test compatibility but not shown in layout
@@ -566,11 +568,13 @@ class DashboardTab(BaseTab):
                     resp_id = a[18] if len(a) > 18 else None
                     tipo = "dependentes" if resp_id else "adultos"
                     mapped.append({
+                        'id': a[0],
                         'nome': a[1],
                         'faixa': a[8] or 'Branca',
                         'plano': a[12] or '',
                         'status': a[15],
                         'tipo': tipo,
+                        'tipo_ficha': 'adulto',
                         'pagamento_status': status_mes.get(a[0], ''),
                     })
                 _conn = get_conn()
@@ -578,11 +582,13 @@ class DashboardTab(BaseTab):
                 _cur.execute("SELECT * FROM kids WHERE ativo=1")
                 for k in _cur.fetchall():
                     mapped.append({
+                        'id': k[0],
                         'nome': k[1],
                         'faixa': k[10] or 'Branca',
                         'plano': k[14] or '',
                         'status': k[17],
                         'tipo': 'kids',
+                        'tipo_ficha': 'kid',
                         'pagamento_status': status_mes.get(-k[0], ''),
                     })
                 _conn.close()
@@ -659,7 +665,19 @@ class DashboardTab(BaseTab):
             "font-size: 10px; color: #555555; background: transparent; border: none;"
         )
         rl.addWidget(lbl_plano)
+
+        # Clique abre a ficha do aluno
+        if dados.get('id') is not None:
+            row.setCursor(Qt.PointingHandCursor)
+            row.mousePressEvent = lambda e, d=dados: self._abrir_ficha(d)
         return row
+
+    def _abrir_ficha(self, dados):
+        try:
+            from ui.ficha_aluno_dialog import FichaAlunoDialog
+            FichaAlunoDialog(dados["id"], dados.get("tipo_ficha", "adulto"), self).exec()
+        except Exception as e:
+            show_error(self, "Erro", f"Não foi possível abrir a ficha: {e}")
 
     def _get_filtered(self):
         all_s = self.metricas.get('all_students_list', [])
@@ -729,6 +747,15 @@ class DashboardTab(BaseTab):
 
         self.card_receita.count_label.setText("")
         self.card_receita.value_label.setText(self._fmt_brl(self.metricas['receita_anual']))
+
+        # Card de frequência média do mês
+        if hasattr(self, 'card_freq_media'):
+            try:
+                media_pct, n_alunos, n_pres = obter_frequencia_media_mes()
+                self.card_freq_media.count_label.setText(f"{media_pct:.0f}%")
+                self.card_freq_media.value_label.setText(f"{n_pres} presenças · {n_alunos} alunos")
+            except Exception as _e:
+                self.card_freq_media.count_label.setText("--")
 
         if 'frequencia' in self.metricas:
             freq = self.metricas['frequencia']

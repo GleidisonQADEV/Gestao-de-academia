@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap, QPalette, QBrush
 
 from ui.base_tab import BaseTab
-from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes
+from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes, atualizar_mensalidades_por_plano
 from database.kids_db import get_conn, atualizar_kid, cpf_kid_existe
 from ui.app_dialog import show_info, show_warning, show_error, show_question, show_custom
 
@@ -612,9 +612,23 @@ class AlunosTab(BaseTab):
 
         def on_click(event, r=row, d=dados):
             self._select_table_row(r, d)
+
+        def on_double(event, d=dados):
+            self._abrir_ficha_aluno(d)
+
         row.mousePressEvent = on_click
+        row.mouseDoubleClickEvent = on_double
         row.setCursor(Qt.PointingHandCursor)
         return row
+
+    def _abrir_ficha_aluno(self, dados):
+        """Abre a ficha completa do aluno (detalhes, frequência e pagamento)."""
+        try:
+            from ui.ficha_aluno_dialog import FichaAlunoDialog
+            tipo_ficha = "kid" if dados.get("tipo") == "kids" else "adulto"
+            FichaAlunoDialog(dados["id"], tipo_ficha, self).exec()
+        except Exception as e:
+            show_error(self, "Erro", f"Não foi possível abrir a ficha: {e}")
 
     def _select_table_row(self, selected_row, dados):
         """Highlights the selected row, deselects others."""
@@ -2358,6 +2372,8 @@ class EdicaoAlunoDialog(QDialog):
                     self.foto_path, self.certificado_path,
                     biometria_json
                 )
+                # Ao trocar o plano, atualiza as mensalidades pendentes (mês atual em diante)
+                atualizar_mensalidades_por_plano(self.dados_aluno["id"], plano)
             else:
                 resp_nome = self.resp_nome.text().strip()
                 resp_cpf = self.resp_cpf.text().replace(".", "").replace("-", "").replace(" ", "")
@@ -2369,6 +2385,8 @@ class EdicaoAlunoDialog(QDialog):
                     self.foto_path, self.certificado_path,
                     biometria_json
                 )
+                # Ao trocar o plano, atualiza as mensalidades pendentes (kids: id negativo)
+                atualizar_mensalidades_por_plano(-self.dados_aluno["id"], plano)
             
             show_info(self, "Sucesso", f"✅ Aluno {nome} atualizado com sucesso!")
             self.accept()
