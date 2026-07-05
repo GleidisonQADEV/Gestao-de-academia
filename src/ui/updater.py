@@ -83,11 +83,25 @@ class Downloader(QThread):
 
 
 def open_installer(path: str):
-    """Open the downloaded installer with the OS default handler."""
+    """Abre o instalador baixado durante a atualização.
+
+    No Windows, roda o instalador do Inno Setup em modo silencioso para não
+    repetir o assistente (pasta, ícone na área de trabalho, etc.) a cada
+    atualização — apenas atualiza os arquivos e recria os atalhos.
+    """
     system = platform.system()
     if system == "Darwin":
         subprocess.Popen(["open", path])
     elif system == "Windows":
-        os.startfile(path)
+        try:
+            subprocess.Popen([
+                path,
+                "/SILENT",             # sem páginas do assistente (mostra só o progresso)
+                "/SUPPRESSMSGBOXES",   # não exibe caixas de confirmação
+                "/NORESTART",          # não reinicia o Windows
+                "/NOCANCEL",
+            ])
+        except Exception:
+            os.startfile(path)
     else:
         subprocess.Popen(["xdg-open", path])
