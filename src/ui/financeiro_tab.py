@@ -87,6 +87,20 @@ class FinanceiroTab(BaseTab):
         self.status_filter.currentTextChanged.connect(self.filtrar_dados)
         top_row.addWidget(self.status_filter)
 
+        btn_export = QPushButton("Exportar PDF")
+        btn_export.setFixedHeight(34)
+        btn_export.setCursor(Qt.PointingHandCursor)
+        btn_export.setStyleSheet("""
+            QPushButton {
+                background: #1e1e1e; color: #cccccc;
+                font-size: 12px; font-weight: 600;
+                border: 1px solid #2a2a2a; border-radius: 7px; padding: 0 16px;
+            }
+            QPushButton:hover { background: #252525; color: #ffffff; }
+        """)
+        btn_export.clicked.connect(self.exportar_financeiro_pdf)
+        top_row.addWidget(btn_export)
+
         layout.addLayout(top_row)
 
         # Widget de abas para meses
@@ -369,6 +383,10 @@ class FinanceiroTab(BaseTab):
 
         except Exception as e:
             show_error(self, "Erro ao carregar dados", f"Erro: {str(e)}")
+
+    def exportar_financeiro_pdf(self):
+        from ui.export_helpers import exportar_pdf_dialog
+        exportar_pdf_dialog(self, "financeiro")
 
     def filtrar_dados(self):
         """Filtra dados por status na aba atual"""

@@ -278,37 +278,8 @@ class ConfigTab(BaseTab):
         self.notificar_atualizacao_planos()
 
     def exportar_pdf(self, tipo):
-        from datetime import date
-        from PySide6.QtWidgets import QFileDialog
-
-        nomes = {
-            "financeiro": "relatorio_financeiro.pdf",
-            "alunos": "lista_alunos.pdf",
-            "frequencia": "relatorio_frequencia.pdf",
-        }
-        caminho, _ = QFileDialog.getSaveFileName(
-            self, "Salvar PDF", nomes.get(tipo, "relatorio.pdf"), "PDF (*.pdf)"
-        )
-        if not caminho:
-            return
-        if not caminho.lower().endswith(".pdf"):
-            caminho += ".pdf"
-
-        try:
-            from utils import pdf_report
-            hoje = date.today()
-            if tipo == "financeiro":
-                pdf_report.gerar_relatorio_financeiro(hoje.year, hoje.month, caminho)
-            elif tipo == "alunos":
-                pdf_report.gerar_lista_alunos(caminho)
-            elif tipo == "frequencia":
-                pdf_report.gerar_relatorio_frequencia(caminho)
-            else:
-                return
-        except Exception as e:
-            show_error(self, "Erro ao gerar PDF", str(e))
-            return
-        show_info(self, "PDF gerado", f"Arquivo salvo em:\n{caminho}")
+        from .export_helpers import exportar_pdf_dialog
+        exportar_pdf_dialog(self, tipo)
 
     def verificar_atualizacoes(self):
         main = self._find_main_window()

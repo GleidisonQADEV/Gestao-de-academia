@@ -374,6 +374,20 @@ class AlunosTab(BaseTab):
         top_row.addWidget(titulo)
         top_row.addStretch()
 
+        btn_export = QPushButton("Exportar PDF")
+        btn_export.setFixedHeight(34)
+        btn_export.setCursor(Qt.PointingHandCursor)
+        btn_export.setStyleSheet("""
+            QPushButton {
+                background: #1e1e1e; color: #cccccc;
+                font-size: 12px; font-weight: 600;
+                border: 1px solid #2a2a2a; border-radius: 7px; padding: 0 16px;
+            }
+            QPushButton:hover { background: #252525; color: #ffffff; }
+        """)
+        btn_export.clicked.connect(self.exportar_lista_pdf)
+        top_row.addWidget(btn_export)
+
         btn_novo = QPushButton("+ Novo Aluno")
         btn_novo.setFixedHeight(34)
         btn_novo.setStyleSheet("""
@@ -504,11 +518,15 @@ class AlunosTab(BaseTab):
         self.btn_del.clicked.connect(self.excluir)
         self.btn_vincular.clicked.connect(self.vincular_responsavel)
 
+        self.btn_ficha = self._btn("Ficha PDF")
+        self.btn_ficha.clicked.connect(self.exportar_ficha_pdf)
+
         self.btns.addStretch()
         self.btns.addWidget(self.btn_edit)
         self.btns.addWidget(self.btn_toggle)
         self.btns.addWidget(self.btn_del)
         self.btns.addWidget(self.btn_vincular)
+        self.btns.addWidget(self.btn_ficha)
         self.btns.addStretch()
         root.addLayout(self.btns)
 
@@ -655,6 +673,7 @@ class AlunosTab(BaseTab):
         self.btn_toggle.setVisible(show)
         self.btn_del.setVisible(show)
         self.btn_vincular.setVisible(show)
+        self.btn_ficha.setVisible(show)
 
     # ---------------- DADOS ----------------
 
@@ -663,6 +682,21 @@ class AlunosTab(BaseTab):
         self.carregar_dados()
         self.busca.clear()
         self._populate_table(self.registros)
+
+    def exportar_lista_pdf(self):
+        from ui.export_helpers import exportar_pdf_dialog
+        exportar_pdf_dialog(self, "alunos")
+
+    def exportar_ficha_pdf(self):
+        if not self.aluno_atual:
+            show_warning(self, "Erro", "Nenhum aluno selecionado!")
+            return
+        if self.aluno_atual.get("tipo") != "adulto":
+            show_info(self, "Ficha PDF",
+                      "A ficha em PDF está disponível para alunos adultos.")
+            return
+        from ui.export_helpers import exportar_pdf_dialog
+        exportar_pdf_dialog(self, "ficha", aluno_id=self.aluno_atual["id"])
 
     def carregar_dados(self):
         self.registros.clear()
@@ -1606,6 +1640,7 @@ class AlunosTab(BaseTab):
         self.btn_edit.setVisible(show)
         self.btn_toggle.setVisible(show)
         self.btn_del.setVisible(show)
+        self.btn_ficha.setVisible(show)
 
 # ================= DIALOG DE EDIÇÃO =================
 class EdicaoAlunoDialog(QDialog):

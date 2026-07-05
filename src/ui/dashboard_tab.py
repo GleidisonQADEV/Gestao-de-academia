@@ -165,6 +165,20 @@ class DashboardTab(BaseTab):
         top.addWidget(title)
         top.addStretch()
 
+        btn_export_freq = QPushButton("Exportar Frequência PDF")
+        btn_export_freq.setFixedHeight(30)
+        btn_export_freq.setCursor(Qt.PointingHandCursor)
+        btn_export_freq.setStyleSheet("""
+            QPushButton {
+                background: #1e1e1e; color: #cccccc;
+                font-size: 11px; font-weight: 600;
+                border: 1px solid #2a2a2a; border-radius: 7px; padding: 0 14px;
+            }
+            QPushButton:hover { background: #252525; color: #ffffff; }
+        """)
+        btn_export_freq.clicked.connect(self.exportar_frequencia_pdf)
+        top.addWidget(btn_export_freq)
+
         _MESES_PT = ["janeiro","fevereiro","março","abril","maio","junho",
                      "julho","agosto","setembro","outubro","novembro","dezembro"]
         _hoje = date.today()
@@ -530,6 +544,10 @@ class DashboardTab(BaseTab):
                 self.load()
             except Exception as e:
                 show_error(self, "Erro", f"Erro ao gerar mensalidades: {str(e)}")
+
+    def exportar_frequencia_pdf(self):
+        from ui.export_helpers import exportar_pdf_dialog
+        exportar_pdf_dialog(self, "frequencia")
 
     def load(self):
         if self._is_testing_environment():
