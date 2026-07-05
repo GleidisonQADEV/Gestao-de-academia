@@ -23,6 +23,7 @@ class UpdateChecker(QThread):
         super().__init__(parent)
         self._version = current_version
         self._repo    = repo
+        self.release_notes = ""   # preenchido com o corpo da release ao detectar update
 
     def run(self):
         try:
@@ -37,6 +38,7 @@ class UpdateChecker(QThread):
                 return
 
             if _parse_version(tag) > _parse_version(self._version):
+                self.release_notes = data.get("body", "") or ""
                 asset_url = self._find_asset(data.get("assets", []))
                 self.update_available.emit(tag.lstrip("v"), asset_url or "")
         except Exception:

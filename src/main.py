@@ -326,7 +326,11 @@ class MainWindow(QWidget):
 
     def _on_update_manual(self, new_version: str, url: str):
         self._manual_update_found = True
-        self._on_update_disponivel(new_version, url)
+        self._update_version = new_version
+        self._update_url     = url
+        self._update_notes   = getattr(self._checker_manual, 'release_notes', '')
+        self._btn_update.setText(f"  Atualizar para v{new_version}")
+        self._btn_update.setVisible(True)
         self._iniciar_download_update()
 
     def _on_checagem_manual_fim(self):
@@ -340,18 +344,17 @@ class MainWindow(QWidget):
     def _on_update_disponivel(self, new_version: str, url: str):
         self._update_version = new_version
         self._update_url     = url
+        self._update_notes   = getattr(self._checker, 'release_notes', '')
         self._btn_update.setText(f"  Atualizar para v{new_version}")
         self._btn_update.setVisible(True)
 
     def _iniciar_download_update(self):
         if not self._update_version:
             return
-        if not show_question(
-            self, "Atualizar Aplicativo",
-            f"Nova versão v{self._update_version} disponível.\n\n"
-            f"Deseja baixar e instalar agora?",
-            "Baixar", "Depois"
-        ):
+
+        from ui.update_dialog import UpdateDialog
+        dlg = UpdateDialog(self._update_version, getattr(self, '_update_notes', ''), self)
+        if not dlg.exec():
             return
 
         if not getattr(self, '_update_url', ''):
