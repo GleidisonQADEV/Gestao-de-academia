@@ -27,10 +27,27 @@ if not SRC.exists():
 
 img = Image.open(SRC).convert("RGBA")
 
+
+def _quadrado(im, size, margem=0.06):
+    """Ajusta a imagem num quadrado transparente, preservando a proporção.
+
+    Evita distorção (esticar) e borrão. 'margem' deixa uma folga nas bordas.
+    """
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    alvo = int(size * (1 - margem * 2))
+    fitted = im.copy()
+    fitted.thumbnail((alvo, alvo), Image.LANCZOS)
+    x = (size - fitted.width) // 2
+    y = (size - fitted.height) // 2
+    canvas.paste(fitted, (x, y), fitted)
+    return canvas
+
+
 # ── Windows .ico ──────────────────────────────────────────────
-SIZES = [(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)]
-frames = [img.resize(s, Image.LANCZOS) for s in SIZES]
-frames[0].save(ICO, format="ICO", sizes=SIZES, append_images=frames[1:])
+ICO_SIZES = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+frames = [_quadrado(img, s) for s, _ in ICO_SIZES]
+# Salva o maior frame com todos os tamanhos embutidos (nítido em cada resolução)
+frames[-1].save(ICO, format="ICO", sizes=ICO_SIZES, append_images=frames[:-1])
 print(f"Criado: {ICO}")
 
 # ── Mac .icns (usa iconutil, disponível apenas no macOS) ──────
@@ -39,9 +56,9 @@ if platform.system() == "Darwin":
     iconset_dir = Path(tempfile.mkdtemp()) / "icon.iconset"
     iconset_dir.mkdir()
     for s in [16, 32, 64, 128, 256, 512, 1024]:
-        img.resize((s, s), Image.LANCZOS).save(iconset_dir / f"icon_{s}x{s}.png")
+        _quadrado(img, s).save(iconset_dir / f"icon_{s}x{s}.png")
         if s <= 512:
-            img.resize((s*2, s*2), Image.LANCZOS).save(iconset_dir / f"icon_{s}x{s}@2x.png")
+            _quadrado(img, s * 2).save(iconset_dir / f"icon_{s}x{s}@2x.png")
     result = subprocess.run(
         ["iconutil", "-c", "icns", str(iconset_dir), "-o", str(ICNS)],
         capture_output=True
@@ -54,3 +71,4 @@ if platform.system() == "Darwin":
         print(f"Erro ao criar .icns: {result.stderr.decode()}")
 else:
     print("Pulando .icns — disponível apenas no macOS.")
+
