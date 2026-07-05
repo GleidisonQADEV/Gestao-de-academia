@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import time
+import uuid
 
 from database.db import _resolver_db_path
 
@@ -189,9 +190,8 @@ def atualizar_kid(
     try:
         # Se não há CPF, gerar um automático
         if not cpf:
-            timestamp_suffix = str(int(time.time()))[-4:]
-            cpf = f"KID{resp_cpf[:6]}{timestamp_suffix}"
-        
+            cpf = f"KID{uuid.uuid4().hex[:11].upper()}"
+
         cur.execute("""
             UPDATE kids SET 
                 nome=?, cpf=?, resp_nome=?, resp_cpf=?, email=?, telefone=?, 
@@ -244,16 +244,14 @@ def inserir_kid(
 
     try:
         if not cpf:
-            timestamp_suffix = str(int(time.time()))[-4:]
-            cpf = f"KID{resp_cpf[:6]}{timestamp_suffix}"
+            cpf = f"KID{uuid.uuid4().hex[:11].upper()}"
 
         cur.execute("""
             INSERT INTO kids (
                 nome, cpf, resp_nome, resp_cpf, email, telefone, cep, endereco,
                 data_nascimento, faixa, grau, peso, altura, plano,
                 foto_path, certificado_path, biometria_data
-            )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            )            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             nome, cpf, resp_nome, resp_cpf, email, telefone, cep, endereco,
             data_nasc, faixa, grau, peso, altura, plano, foto_path, certificado_path, biometria_data

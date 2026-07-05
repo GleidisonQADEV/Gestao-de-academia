@@ -222,6 +222,7 @@ class ConfigTab(BaseTab):
         row_import.addWidget(QLabel())
         row_import.addStretch()
         row_import.addWidget(self._botao("Importar do Google Sheets", self.importar_google_sheets))
+        row_import.addWidget(self._botao("Importar Kids", self.importar_kids_google_sheets, primario=False))
         vbox.addLayout(row_import)
 
         row_pdf = QHBoxLayout()
@@ -286,6 +287,42 @@ class ConfigTab(BaseTab):
         if resumo["erros"]:
             msg += "\n\n" + "\n".join(resumo["erros"][:5])
         show_info(self, "Importação concluída", msg)
+        self.notificar_atualizacao_planos()
+
+    def importar_kids_google_sheets(self):
+        url, ok = show_input(
+            self, "Importar Kids do Google Sheets",
+            "Cole o link da planilha de menores (compartilhada como 'qualquer pessoa com o link')."
+        )
+        if not ok or not url.strip():
+            return
+
+        opcoes = [p for p in get_planos_formatados() if p != "Plano Personalizado"]
+        if "Kids (5-13) - R$150" not in opcoes:
+            opcoes.insert(0, "Kids (5-13) - R$150")
+        plano_padrao, _ = show_combo(
+            self, "Plano padrão dos Kids",
+            "Plano a aplicar aos Kids importados:",
+            opcoes, default="Kids (5-13) - R$150"
+        )
+        plano_padrao = (plano_padrao or "").strip() or "Kids (5-13) - R$150"
+
+        try:
+            from utils.sheets_import import importar_kids_de_url
+            resumo = importar_kids_de_url(url.strip(), plano_padrao=plano_padrao)
+        except Exception as e:
+            show_error(self, "Erro na importação", str(e))
+            return
+
+        msg = (
+            f"Kids importados: {resumo['importados']}\n"
+            f"Vinculados a um responsável cadastrado: {resumo['vinculados']}\n"
+            f"Ignorados (sem nome): {resumo['ignorados']}\n"
+            f"Erros: {len(resumo['erros'])}"
+        )
+        if resumo["erros"]:
+            msg += "\n\n" + "\n".join(resumo["erros"][:5])
+        show_info(self, "Importação de Kids concluída", msg)
         self.notificar_atualizacao_planos()
 
     def exportar_pdf(self, tipo):

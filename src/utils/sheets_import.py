@@ -361,3 +361,185 @@ def importar_alunos_de_url(url: str, plano_padrao: str = None):
         "erros": erros,
         "total": importados + ignorados + len(erros),
     }
+
+
+# ============================ IMPORTAÇÃO DE KIDS ============================
+
+def _campo_do_cabecalho_kid(norm: str):
+    """Mapeia cabeçalhos da planilha de matrícula de menores.
+
+    Diferencia colunas do aluno das do responsável (ambas têm 'nome'/'cpf').
+    """
+    # Colunas do responsável primeiro (contêm nome/cpf/telefone/e-mail)
+    if "responsavel" in norm:
+        if "cpf" in norm:
+            return "resp_cpf"
+        if "nome" in norm:
+            return "resp_nome"
+        if "telefone" in norm or "whatsapp" in norm:
+            return "telefone"
+        if "mail" in norm:
+            return "email"
+        return None
+    # Colunas do aluno (menor)
+    if norm.startswith("nome"):            # "nome completo do aluno"
+        return "nome"
+    if "cpf" in norm:                      # "cpf do aluno"
+        return "cpf"
+    if "nascimento" in norm:
+        return "data_nasc"
+    if norm.startswith("faixa"):
+        return "faixa"
+    if norm.startswith("endereco"):
+        return "endereco"
+    if norm.startswith("grau"):
+        return "grau"
+    if "tempo" in norm:
+        return "tempo_faixa"
+    return None
+
+
+# Faixas kids -> formato do app (Branca, Cinza c/b, Amarela, Verde c/p, ...)
+_BASES_FAIXA = {
+    "branca": "Branca", "cinza": "Cinza", "amarela": "Amarela",
+    "laranja": "Laranja", "verde": "Verde",
+    "azul": "Azul", "roxa": "Roxa", "marrom": "Marrom",
+    "marron": "Marrom", "preta": "Preta",
+}
+
+
+def _norm_faixa_kid(valor: str) -> str:
+    v = (valor or "").strip().lower()
+    if not v or v in {"0", "?", "-", "n/a", "na"}:
+        return "Branca"
+    base = None
+    for k, b in _BASES_FAIXA.items():
+        if k in v:
+            base = b
+            break
+    if not base:
+        return valor.strip().title()
+    if base in ("Branca", "Azul", "Roxa", "Marrom", "Preta"):
+        return base
+    # Faixas kids têm variantes com ponta branca (c/b) e com ponta preta (c/p)
+    if "branc" in v:
+        return f"{base} c/b"
+    if "ponta" in v or "pret" in v:
+        return f"{base} c/p"
+    return base
+
+
+def _buscar_adulto_por_cpf(cpf: str):
+    """Retorna (id, nome) do aluno adulto ativo com esse CPF, ou None."""
+    if not cpf:
+        return None
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, nome FROM alunos WHERE cpf = ? AND ativo = 1", (cpf,))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def _cpf_kid_ja_existe(cpf: str) -> bool:
+    if not cpf:
+        return False
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 FROM kids WHERE cpf = ?", (cpf,))
+        existe = cur.fetchone() is not None
+    except Exception:
+        existe = False
+    conn.close()
+    return existe
+
+
+def importar_kids_de_url(url: str, plano_padrao: str = "Kids (5-13) - R$150"):
+    """Importa a planilha de menores e vincula ao responsável quando ele é aluno.
+
+    Se o CPF do responsável corresponder a um aluno adulto cadastrado, usa o
+    nome oficial do responsável e conta como 'vinculado'.
+
+    Retorna: {'importados', 'vinculados', 'ignorados', 'erros', 'total'}.
+    """
+    from database.kids_db import inserir_kid
+
+    conteudo = _baixar_csv_robusto(url)
+    leitor = csv.reader(io.StringIO(conteudo))
+    linhas = list(leitor)
+    if not linhas:
+        return {"importados": 0, "vinculados": 0, "ignorados": 0, "erros": ["Planilha vazia."], "total": 0}
+
+    cabecalho = [_normalizar(c) for c in linhas[0]]
+    col_idx = {}
+    for i, nome_col in enumerate(cabecalho):
+        campo = _campo_do_cabecalho_kid(nome_col)
+        if campo and campo not in col_idx:
+            col_idx[campo] = i
+
+    if "nome" not in col_idx:
+        return {
+            "importados": 0, "vinculados": 0, "ignorados": 0,
+            "erros": ["A planilha precisa ter a coluna de nome do aluno."],
+            "total": max(len(linhas) - 1, 0),
+        }
+
+    def _val(linha, campo):
+        idx = col_idx.get(campo)
+        if idx is None or idx >= len(linha):
+            return ""
+        return (linha[idx] or "").strip()
+
+    importados = vinculados = ignorados = 0
+    erros = []
+
+    for num, linha in enumerate(linhas[1:], start=2):
+        if not any((c or "").strip() for c in linha):
+            continue
+
+        nome = _norm_nome(_val(linha, "nome"))
+        if not nome:
+            ignorados += 1
+            continue
+
+        cpf_kid = re.sub(r"\D", "", _val(linha, "cpf"))
+        if cpf_kid and _cpf_kid_ja_existe(cpf_kid):
+            ignorados += 1
+            continue
+
+        resp_cpf = re.sub(r"\D", "", _val(linha, "resp_cpf"))
+        resp_nome = _norm_nome(_val(linha, "resp_nome"))
+
+        # Vinculação: se o responsável é um aluno adulto cadastrado
+        adulto = _buscar_adulto_por_cpf(resp_cpf)
+        if adulto:
+            resp_nome = adulto[1]  # nome oficial do responsável cadastrado
+            vinculados += 1
+
+        try:
+            inserir_kid(
+                nome, cpf_kid or None, resp_nome or "", resp_cpf or "",
+                _val(linha, "email") or None,
+                _limpar_telefone(_val(linha, "telefone")),
+                _val(linha, "cep"),
+                _val(linha, "endereco"),
+                _conv_data(_val(linha, "data_nasc")),
+                _norm_faixa_kid(_val(linha, "faixa")),
+                _norm_grau(_val(linha, "grau")),
+                "", "",
+                plano_padrao,
+                None, None,
+            )
+            importados += 1
+        except Exception as e:  # noqa: BLE001
+            erros.append(f"Linha {num} ({nome}): {e}")
+
+    return {
+        "importados": importados,
+        "vinculados": vinculados,
+        "ignorados": ignorados,
+        "erros": erros,
+        "total": importados + ignorados + len(erros),
+    }
+
