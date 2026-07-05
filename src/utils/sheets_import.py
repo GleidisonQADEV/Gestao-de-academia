@@ -128,6 +128,17 @@ def _conv_data(valor: str) -> str:
 
 
 
+def _ids_da_url(url: str):
+    """Extrai (sheet_id, gid) de uma URL do Google Sheets."""
+    url = (url or "").strip()
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", url)
+    if not m:
+        return None, None
+    sid = m.group(1)
+    g = re.search(r"[#&?]gid=(\d+)", url)
+    return sid, (g.group(1) if g else "0")
+
+
 def extrair_csv_url(url: str) -> str:
     """Converte uma URL do Google Sheets no link de export CSV.
 
@@ -137,23 +148,71 @@ def extrair_csv_url(url: str) -> str:
     if not url:
         raise ValueError("URL vazia.")
 
-    match = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", url)
-    if not match:
+    sid, gid = _ids_da_url(url)
+    if not sid:
         # Talvez já seja um link CSV direto.
         if "format=csv" in url or url.lower().endswith(".csv"):
             return url
         raise ValueError("URL do Google Sheets inválida.")
 
-    sheet_id = match.group(1)
-    gid_match = re.search(r"[#&?]gid=(\d+)", url)
-    gid = gid_match.group(1) if gid_match else "0"
-    return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+    return f"https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
+
+
+def _urls_csv_candidatas(url: str):
+    """Lista de URLs de CSV a tentar (export e, como fallback, gviz)."""
+    sid, gid = _ids_da_url(url)
+    if not sid:
+        return [extrair_csv_url(url)]
+    return [
+        f"https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}",
+        f"https://docs.google.com/spreadsheets/d/{sid}/gviz/tq?tqx=out:csv&gid={gid}",
+    ]
 
 
 def _baixar_csv(csv_url: str) -> str:
-    req = urllib.request.Request(csv_url, headers={"User-Agent": "LegacyBJJ-import"})
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        return resp.read().decode("utf-8-sig")
+    import urllib.error
+
+    # User-Agent de navegador evita respostas 400 do Google para clientes "estranhos".
+    ua = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+          "(KHTML, like Gecko) Chrome/120.0 Safari/537.36 LegacyBJJ-import")
+    req = urllib.request.Request(csv_url, headers={"User-Agent": ua})
+
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            conteudo = resp.read().decode("utf-8-sig")
+    except urllib.error.HTTPError as e:
+        if e.code in (400, 401, 403):
+            raise ValueError(
+                "Não foi possível acessar a planilha. Verifique se ela está "
+                "compartilhada como 'Qualquer pessoa com o link' (Leitor) e se o "
+                "link está correto."
+            )
+        if e.code == 404:
+            raise ValueError("Planilha não encontrada. Confira o link.")
+        raise ValueError(f"Erro ao baixar a planilha (HTTP {e.code}).")
+    except urllib.error.URLError as e:
+        raise ValueError(f"Sem conexão para baixar a planilha: {e.reason}")
+
+    # Se veio HTML (página de login), a planilha não está pública.
+    inicio = conteudo.lstrip()[:200].lower()
+    if inicio.startswith("<!doctype html") or "<html" in inicio:
+        raise ValueError(
+            "A planilha não está pública. Compartilhe como "
+            "'Qualquer pessoa com o link' (Leitor) e tente novamente."
+        )
+    return conteudo
+
+
+def _baixar_csv_robusto(url_original: str) -> str:
+    """Tenta baixar o CSV pelas URLs candidatas; retorna o primeiro conteúdo válido."""
+    ultimo_erro = None
+    for u in _urls_csv_candidatas(url_original):
+        try:
+            return _baixar_csv(u)
+        except ValueError as e:
+            ultimo_erro = e
+    raise ultimo_erro or ValueError("Não foi possível baixar a planilha.")
+
 
 
 def _cpf_ja_existe(cpf: str) -> bool:
@@ -174,8 +233,7 @@ def importar_alunos_de_url(url: str, plano_padrao: str = None):
     Retorna um dicionário com o resumo:
         {'importados': int, 'ignorados': int, 'erros': [str, ...], 'total': int}
     """
-    csv_url = extrair_csv_url(url)
-    conteudo = _baixar_csv(csv_url)
+    conteudo = _baixar_csv_robusto(url)
 
     leitor = csv.reader(io.StringIO(conteudo))
     linhas = list(leitor)
