@@ -4,11 +4,12 @@ A planilha precisa estar compartilhada como "qualquer pessoa com o link pode ver
 (ou publicada na web). O módulo converte a URL para o export em CSV e não requer
 credenciais/OAuth do Google.
 
-Cabeçalhos esperados (primeira linha, sem diferenciar maiúsculas/acentos):
-    nome, cpf, email, telefone, cep, endereco, data_nascimento,
-    faixa, grau, peso, altura, plano
+Reconhece tanto cabeçalhos simples (nome, cpf, telefone, ...) quanto os gerados
+por Google Forms de matrícula (ex.: "Nome completo", "Telefone (WhatsApp)",
+"Endereço completo", "Graus", "Data de nascimento"). Também normaliza faixa,
+grau, telefone e data (DD/MM/AAAA -> AAAA-MM-DD).
 
-Apenas ``nome`` é obrigatório. CPFs duplicados (já cadastrados) são ignorados.
+Apenas o nome é obrigatório. CPFs duplicados (já cadastrados) são ignorados.
 """
 import csv
 import io
@@ -19,7 +20,7 @@ import urllib.request
 from database.db import inserir_aluno, get_conn
 
 
-# Aliases de cabeçalho -> campo interno
+# Aliases exatos de cabeçalho (normalizado) -> campo interno
 _HEADER_ALIASES = {
     "nome": "nome",
     "cpf": "cpf",
@@ -49,6 +50,82 @@ def _normalizar(texto: str) -> str:
     texto = unicodedata.normalize("NFKD", str(texto))
     texto = "".join(c for c in texto if not unicodedata.combining(c))
     return texto.strip().lower()
+
+
+def _campo_do_cabecalho(norm: str):
+    """Descobre o campo interno de um cabeçalho (alias exato ou por palavra-chave)."""
+    if norm in _HEADER_ALIASES:
+        return _HEADER_ALIASES[norm]
+    # Correspondência flexível para planilhas de formulário de matrícula.
+    if norm.startswith("nome"):            # "nome completo" (mas não "digite seu nome...")
+        return "nome"
+    if "whatsapp" in norm or "telefone" in norm or "celular" in norm:
+        return "telefone"
+    if "mail" in norm:
+        return "email"
+    if norm.startswith("endereco"):        # "endereço completo"
+        return "endereco"
+    if "nascimento" in norm:
+        return "data_nasc"
+    if norm.startswith("faixa"):           # "faixa" (não "quanto tempo de faixa?")
+        return "faixa"
+    if norm.startswith("grau"):            # "graus"
+        return "grau"
+    if norm == "cpf":
+        return "cpf"
+    if norm.startswith("cep"):
+        return "cep"
+    if norm.startswith("peso"):
+        return "peso"
+    if norm.startswith("altura"):
+        return "altura"
+    if norm.startswith("plano"):
+        return "plano"
+    return None
+
+
+# Normalização de valores -------------------------------------------------
+
+_FAIXAS_VALIDAS = {
+    "branca": "Branca", "azul": "Azul", "roxa": "Roxa",
+    "marrom": "Marrom", "marron": "Marrom", "preta": "Preta",
+    "cinza": "Cinza", "amarela": "Amarela", "laranja": "Laranja", "verde": "Verde",
+}
+
+
+def _norm_faixa(valor: str) -> str:
+    v = (valor or "").strip().lower()
+    if not v or v in {"0", "?", "-", "n/a", "na"}:
+        return "Branca"
+    return _FAIXAS_VALIDAS.get(v, valor.strip().title())
+
+
+_GRAUS = {
+    "0": "Sem grau", "sem grau": "Sem grau", "": "Sem grau",
+    "1": "1 Grau", "2": "2 Graus", "3": "3 Graus", "4": "4 Graus",
+}
+
+
+def _norm_grau(valor: str) -> str:
+    v = (valor or "").strip().lower()
+    return _GRAUS.get(v, valor.strip() or "Sem grau")
+
+
+def _limpar_telefone(valor: str) -> str:
+    return re.sub(r"\D", "", valor or "")
+
+
+def _conv_data(valor: str) -> str:
+    """Converte DD/MM/AAAA para AAAA-MM-DD; mantém se já estiver em ISO."""
+    v = (valor or "").strip()
+    if not v:
+        return ""
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", v)
+    if m:
+        d, mth, y = m.groups()
+        return f"{y}-{int(mth):02d}-{int(d):02d}"
+    return v
+
 
 
 def extrair_csv_url(url: str) -> str:
@@ -90,9 +167,10 @@ def _cpf_ja_existe(cpf: str) -> bool:
     return existe
 
 
-def importar_alunos_de_url(url: str):
+def importar_alunos_de_url(url: str, plano_padrao: str = None):
     """Baixa a planilha e cadastra os alunos.
 
+    ``plano_padrao`` é usado quando a planilha não tem coluna de plano.
     Retorna um dicionário com o resumo:
         {'importados': int, 'ignorados': int, 'erros': [str, ...], 'total': int}
     """
@@ -104,18 +182,18 @@ def importar_alunos_de_url(url: str):
     if not linhas:
         return {"importados": 0, "ignorados": 0, "erros": ["Planilha vazia."], "total": 0}
 
-    # Mapear cabeçalhos -> índice de coluna
+    # Mapear cabeçalhos -> índice de coluna (primeira ocorrência vence)
     cabecalho = [_normalizar(c) for c in linhas[0]]
     col_idx = {}
     for i, nome_col in enumerate(cabecalho):
-        campo = _HEADER_ALIASES.get(nome_col)
+        campo = _campo_do_cabecalho(nome_col)
         if campo and campo not in col_idx:
             col_idx[campo] = i
 
     if "nome" not in col_idx:
         return {
             "importados": 0, "ignorados": 0,
-            "erros": ["A planilha precisa ter ao menos a coluna 'nome'."],
+            "erros": ["A planilha precisa ter ao menos uma coluna de nome."],
             "total": max(len(linhas) - 1, 0),
         }
 
@@ -149,15 +227,15 @@ def importar_alunos_de_url(url: str):
                 nome=nome,
                 cpf=cpf or None,
                 email=_val(linha, "email") or None,
-                telefone=_val(linha, "telefone"),
+                telefone=_limpar_telefone(_val(linha, "telefone")),
                 cep=_val(linha, "cep"),
                 endereco=_val(linha, "endereco"),
-                data_nasc=_val(linha, "data_nasc"),
-                faixa=_val(linha, "faixa") or "Branca",
-                grau=_val(linha, "grau") or "0",
+                data_nasc=_conv_data(_val(linha, "data_nasc")),
+                faixa=_norm_faixa(_val(linha, "faixa")),
+                grau=_norm_grau(_val(linha, "grau")),
                 peso=_val(linha, "peso"),
                 altura=_val(linha, "altura"),
-                plano=_val(linha, "plano") or None,
+                plano=_val(linha, "plano") or plano_padrao,
                 foto_path=None,
                 certificado_path=None,
                 biometria_data=None,

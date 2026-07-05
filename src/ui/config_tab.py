@@ -260,9 +260,17 @@ class ConfigTab(BaseTab):
         )
         if not ok or not url.strip():
             return
+
+        plano_padrao, _ = show_input(
+            self, "Plano padrão (opcional)",
+            "Plano a aplicar aos alunos importados (deixe em branco se a planilha já tiver).",
+            "ex.: Adulto - R$180"
+        )
+        plano_padrao = (plano_padrao or "").strip() or None
+
         try:
             from utils.sheets_import import importar_alunos_de_url
-            resumo = importar_alunos_de_url(url.strip())
+            resumo = importar_alunos_de_url(url.strip(), plano_padrao=plano_padrao)
         except Exception as e:
             show_error(self, "Erro na importação", str(e))
             return
