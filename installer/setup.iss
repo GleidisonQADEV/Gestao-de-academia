@@ -37,8 +37,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Criar atalho na Área de Trabalho"; GroupDescription: "Ícones adicionais:"; Flags: checkedonce
 
 [Files]
-; O spec gera um executavel unico (onefile), portanto empacotamos so o .exe.
-Source: "..\dist\LegacyBJJ.exe"; DestDir: "{app}"; Flags: ignoreversion
+; O spec agora gera uma pasta (onedir): empacotamos todo o conteúdo.
+Source: "..\dist\LegacyBJJ\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#AppName}";        Filename: "{app}\{#AppExe}"; IconFilename: "{app}\{#AppExe}"

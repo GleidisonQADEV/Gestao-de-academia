@@ -39,16 +39,13 @@ else:
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='LegacyBJJ',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -58,15 +55,25 @@ exe = EXE(
     icon=_icon,
 )
 
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='LegacyBJJ',
+)
+
 if sys.platform == 'darwin':
     app = BUNDLE(
-        exe,
+        coll,
         name='LegacyBJJ.app',
         icon=str(ROOT / 'src' / 'assets' / 'icon.icns'),
         bundle_identifier='com.legacybjj.app',
         info_plist={
-            'CFBundleShortVersionString': '1.2.2',
-            'CFBundleVersion':            '1.2.2',
+            'CFBundleShortVersionString': '1.2.3',
+            'CFBundleVersion':            '1.2.3',
             'NSHighResolutionCapable':    True,
         },
     )
