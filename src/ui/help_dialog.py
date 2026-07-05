@@ -35,6 +35,12 @@ Sheets compartilhada como "qualquer pessoa com o link pode ver". A primeira
 linha deve conter os cabeçalhos: <i>nome, cpf, email, telefone, cep, endereco,
 data_nascimento, faixa, grau, peso, altura, plano</i>. Apenas <b>nome</b> é
 obrigatório e CPFs já cadastrados são ignorados.</p>
+<p><b>Importar Kids:</b> use o botão "Importar Kids" para a planilha de menores.
+Se o CPF do responsável já for um aluno adulto cadastrado, o Kid é vinculado
+automaticamente a ele.</p>
+<p style="color:#f2c200;"><b>Ordem recomendada:</b> importe primeiro os
+<b>alunos adultos</b> (responsáveis) e só depois os <b>Kids</b> — assim a
+vinculação ao responsável acontece automaticamente.</p>
 
 <h3 style="color:#e0e0e0;">7. Exportar PDF</h3>
 <p>Em <b>Configurações → Dados</b> você gera relatórios em PDF: financeiro,

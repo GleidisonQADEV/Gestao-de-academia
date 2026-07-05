@@ -292,7 +292,9 @@ class ConfigTab(BaseTab):
     def importar_kids_google_sheets(self):
         url, ok = show_input(
             self, "Importar Kids do Google Sheets",
-            "Cole o link da planilha de menores (compartilhada como 'qualquer pessoa com o link')."
+            "Cole o link da planilha de menores (compartilhada como 'qualquer pessoa com o link').\n\n"
+            "IMPORTANTE: importe primeiro os alunos adultos (responsáveis) e depois os Kids, "
+            "para que a vinculação ao responsável aconteça automaticamente."
         )
         if not ok or not url.strip():
             return
