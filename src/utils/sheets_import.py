@@ -59,6 +59,8 @@ def _campo_do_cabecalho(norm: str):
     # Correspondência flexível para planilhas de formulário de matrícula.
     if norm.startswith("nome"):            # "nome completo" (mas não "digite seu nome...")
         return "nome"
+    if "emergencia" in norm:               # antes de telefone (contém "telefone")
+        return "contato_emergencia"
     if "whatsapp" in norm or "telefone" in norm or "celular" in norm:
         return "telefone"
     if "mail" in norm:
@@ -84,8 +86,6 @@ def _campo_do_cabecalho(norm: str):
     # Campos extras da ficha de matrícula
     if "sanguineo" in norm:
         return "tipo_sanguineo"
-    if "emergencia" in norm:
-        return "contato_emergencia"
     if "alergia" in norm:
         return "alergias"
     if "especifique" in norm:
