@@ -3,11 +3,36 @@ from PySide6.QtWidgets import (
     QFrame, QHBoxLayout
 )
 from .app_dialog import show_warning, show_question, show_info
-from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap, QIcon, QPainter
+from PySide6.QtCore import Qt, QSize
 import os
 
 from database.db import validar_login, get_conn
+
+
+_EYE_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+            ' stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+            '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>')
+_EYE_OFF_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+                ' stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+                '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>'
+                '<line x1="1" y1="1" x2="23" y2="23"/></svg>')
+
+
+def _eye_icon(mostrar: bool, color="#888888", size=18):
+    """Gera um QIcon de olho (aberto=senha visível / cortado=oculta)."""
+    try:
+        from PySide6.QtSvg import QSvgRenderer
+        svg = _EYE_SVG if mostrar else _EYE_OFF_SVG
+        renderer = QSvgRenderer(bytearray(svg.replace("currentColor", color).encode("utf-8")))
+        pix = QPixmap(size, size)
+        pix.fill(Qt.transparent)
+        painter = QPainter(pix)
+        renderer.render(painter)
+        painter.end()
+        return QIcon(pix)
+    except Exception:
+        return QIcon()
 
 
 class LoginWindow(QWidget):
@@ -67,6 +92,14 @@ class LoginWindow(QWidget):
         self.pass_input = QLineEdit()
         self.pass_input.setPlaceholderText("Senha")
         self.pass_input.setEchoMode(QLineEdit.Password)
+
+        # Olho para mostrar/ocultar a senha
+        self._senha_visivel = False
+        self._eye_action = self.pass_input.addAction(
+            _eye_icon(False), QLineEdit.TrailingPosition
+        )
+        self._eye_action.setToolTip("Mostrar senha")
+        self._eye_action.triggered.connect(self._toggle_senha)
 
         input_style = """
             QLineEdit {
@@ -138,6 +171,17 @@ class LoginWindow(QWidget):
         main_layout.addWidget(card)
 
     # ---------------- LOGIN ----------------
+
+    def _toggle_senha(self):
+        """Alterna entre mostrar e ocultar a senha."""
+        self._senha_visivel = not self._senha_visivel
+        self.pass_input.setEchoMode(
+            QLineEdit.Normal if self._senha_visivel else QLineEdit.Password
+        )
+        self._eye_action.setIcon(_eye_icon(self._senha_visivel))
+        self._eye_action.setToolTip(
+            "Ocultar senha" if self._senha_visivel else "Mostrar senha"
+        )
 
     def login(self):
         user = self.user_input.text().strip()
