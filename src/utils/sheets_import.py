@@ -81,6 +81,19 @@ def _campo_do_cabecalho(norm: str):
         return "altura"
     if norm.startswith("plano"):
         return "plano"
+    # Campos extras da ficha de matrícula
+    if "sanguineo" in norm:
+        return "tipo_sanguineo"
+    if "emergencia" in norm:
+        return "contato_emergencia"
+    if "alergia" in norm:
+        return "alergias"
+    if "especifique" in norm:
+        return "condicoes_esp"
+    if "condicoes" in norm or "condicao" in norm:
+        return "condicoes_medicas"
+    if "tempo" in norm:
+        return "tempo_faixa"
     return None
 
 
@@ -307,6 +320,14 @@ def importar_alunos_de_url(url: str, plano_padrao: str = None):
             ignorados += 1
             continue
 
+        # Combina condição médica + especificação
+        cond = _val(linha, "condicoes_medicas")
+        cond_esp = _val(linha, "condicoes_esp")
+        if cond and cond_esp:
+            condicoes = f"{cond} — {cond_esp}"
+        else:
+            condicoes = cond or cond_esp
+
         try:
             inserir_aluno(
                 nome=nome,
@@ -324,6 +345,11 @@ def importar_alunos_de_url(url: str, plano_padrao: str = None):
                 foto_path=None,
                 certificado_path=None,
                 biometria_data=None,
+                tipo_sanguineo=_val(linha, "tipo_sanguineo") or None,
+                contato_emergencia=_val(linha, "contato_emergencia") or None,
+                alergias=_val(linha, "alergias") or None,
+                condicoes_medicas=condicoes or None,
+                tempo_faixa=_val(linha, "tempo_faixa") or None,
             )
             importados += 1
         except Exception as e:  # noqa: BLE001 - reportamos qualquer falha por linha

@@ -109,6 +109,14 @@ def init_db():
         cur.execute("ALTER TABLE alunos ADD COLUMN responsavel_id INTEGER")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_alunos_responsavel_id ON alunos(responsavel_id)")
 
+    # Campos extras (ficha de matrícula / planilha): adicionados se não existirem
+    for _col in ("tipo_sanguineo", "contato_emergencia", "alergias",
+                 "condicoes_medicas", "tempo_faixa"):
+        try:
+            cur.execute(f"SELECT {_col} FROM alunos LIMIT 1")
+        except sqlite3.OperationalError:
+            cur.execute(f"ALTER TABLE alunos ADD COLUMN {_col} TEXT")
+
     # ---- tabela mensalidades ----
     cur.execute("""
         CREATE TABLE IF NOT EXISTS mensalidades (
@@ -220,7 +228,9 @@ def validar_login(username, password):
 def inserir_aluno(
     nome, cpf, email, telefone, cep, endereco, data_nasc,
     faixa, grau, peso, altura, plano,
-    foto_path, certificado_path, biometria_data=None
+    foto_path, certificado_path, biometria_data=None,
+    tipo_sanguineo=None, contato_emergencia=None, alergias=None,
+    condicoes_medicas=None, tempo_faixa=None
 ):
     conn = get_conn()
     cur = conn.cursor()
@@ -229,13 +239,15 @@ def inserir_aluno(
         INSERT INTO alunos (
             nome, cpf, email, telefone, cep, endereco, data_nascimento,
             faixa, grau, peso, altura, plano,
-            foto_path, certificado_path, biometria_data
+            foto_path, certificado_path, biometria_data,
+            tipo_sanguineo, contato_emergencia, alergias, condicoes_medicas, tempo_faixa
         )
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, (
         nome, cpf, email, telefone, cep, endereco, data_nasc,
         faixa, grau, peso, altura, plano,
-        foto_path, certificado_path, biometria_data
+        foto_path, certificado_path, biometria_data,
+        tipo_sanguineo, contato_emergencia, alergias, condicoes_medicas, tempo_faixa
     ))
 
     aluno_id = cur.lastrowid
@@ -263,7 +275,10 @@ def listar_todos_alunos():
     # Query simples primeiro para pegar todos os alunos com responsáveis
     cur.execute("""
         SELECT 
-            a.*,
+            a.id, a.nome, a.cpf, a.email, a.telefone, a.cep, a.endereco,
+            a.data_nascimento, a.faixa, a.grau, a.peso, a.altura, a.plano,
+            a.foto_path, a.certificado_path, a.biometria_data, a.ativo,
+            a.criado_em, a.responsavel_id,
             r.nome as responsavel_nome,
             r.cpf as responsavel_cpf
         FROM alunos a
@@ -313,26 +328,47 @@ def inativar_aluno(aluno_id, novo_status=0):
     conn.close()
 
 
+_MANTER = object()  # sentinela: mantém o valor atual da coluna no UPDATE
+
+
 def atualizar_aluno(
     aluno_id, nome, cpf, email, telefone, cep, endereco, data_nasc,
-    faixa, grau, peso, altura, plano, foto_path, certificado_path, biometria_data=None
+    faixa, grau, peso, altura, plano, foto_path, certificado_path, biometria_data=None,
+    tipo_sanguineo=_MANTER, contato_emergencia=_MANTER, alergias=_MANTER,
+    condicoes_medicas=_MANTER, tempo_faixa=_MANTER
 ):
-    """Atualiza todos os dados de um aluno"""
+    """Atualiza os dados de um aluno.
+
+    Os campos extras (tipo_sanguineo, contato_emergencia, alergias,
+    condicoes_medicas, tempo_faixa) só são alterados se forem informados;
+    caso contrário, o valor atual é preservado.
+    """
     conn = get_conn()
     cur = conn.cursor()
-    
-    cur.execute("""
-        UPDATE alunos SET 
-            nome=?, cpf=?, email=?, telefone=?, cep=?, endereco=?, data_nascimento=?,
-            faixa=?, grau=?, peso=?, altura=?, plano=?,
-            foto_path=?, certificado_path=?, biometria_data=?
-        WHERE id=?
-    """, (
+
+    campos = [
+        "nome=?", "cpf=?", "email=?", "telefone=?", "cep=?", "endereco=?",
+        "data_nascimento=?", "faixa=?", "grau=?", "peso=?", "altura=?", "plano=?",
+        "foto_path=?", "certificado_path=?", "biometria_data=?",
+    ]
+    valores = [
         nome, cpf, email, telefone, cep, endereco, data_nasc,
-        faixa, grau, peso, altura, plano,
-        foto_path, certificado_path, biometria_data, aluno_id
-    ))
-    
+        faixa, grau, peso, altura, plano, foto_path, certificado_path, biometria_data,
+    ]
+    for col, val in (
+        ("tipo_sanguineo", tipo_sanguineo),
+        ("contato_emergencia", contato_emergencia),
+        ("alergias", alergias),
+        ("condicoes_medicas", condicoes_medicas),
+        ("tempo_faixa", tempo_faixa),
+    ):
+        if val is not _MANTER:
+            campos.append(f"{col}=?")
+            valores.append(val)
+
+    valores.append(aluno_id)
+    cur.execute(f"UPDATE alunos SET {', '.join(campos)} WHERE id=?", valores)
+
     conn.commit()
     conn.close()
 

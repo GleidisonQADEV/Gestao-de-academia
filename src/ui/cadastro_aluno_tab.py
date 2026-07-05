@@ -277,6 +277,39 @@ class CadastroAlunoTab(BaseTab):
         pl.addWidget(self.altura)
         form.addLayout(row("Peso / Altura:", pw))
 
+        # -------- CAMPOS DA FICHA DE MATRÍCULA --------
+        self.tipo_sanguineo = QComboBox()
+        self.tipo_sanguineo.addItems(
+            ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Não sei informar"]
+        )
+        self.tipo_sanguineo.setFixedWidth(INPUT_W)
+        self.tipo_sanguineo.setStyleSheet(input_style)
+        form.addLayout(row("Tipo sanguíneo:", self.tipo_sanguineo))
+
+        self.tempo_faixa = QLineEdit()
+        self.tempo_faixa.setPlaceholderText("Ex: 2 anos")
+        self.tempo_faixa.setFixedWidth(INPUT_W)
+        self.tempo_faixa.setStyleSheet(input_style)
+        form.addLayout(row("Tempo de faixa:", self.tempo_faixa))
+
+        self.contato_emergencia = QLineEdit()
+        self.contato_emergencia.setPlaceholderText("Nome e telefone")
+        self.contato_emergencia.setFixedWidth(INPUT_W)
+        self.contato_emergencia.setStyleSheet(input_style)
+        form.addLayout(row("Contato de emergência:", self.contato_emergencia))
+
+        self.alergias = QLineEdit()
+        self.alergias.setPlaceholderText("Descreva, se houver")
+        self.alergias.setFixedWidth(INPUT_W)
+        self.alergias.setStyleSheet(input_style)
+        form.addLayout(row("Alergias:", self.alergias))
+
+        self.condicoes_medicas = QLineEdit()
+        self.condicoes_medicas.setPlaceholderText("Condições de saúde relevantes")
+        self.condicoes_medicas.setFixedWidth(INPUT_W)
+        self.condicoes_medicas.setStyleSheet(input_style)
+        form.addLayout(row("Condições médicas:", self.condicoes_medicas))
+
         # -------- PLANO --------
         self.plano = QComboBox()
         self.carregar_planos()
@@ -418,6 +451,11 @@ class CadastroAlunoTab(BaseTab):
         self.altura.clear()
         self.resp_nome.clear()
         self.resp_cpf.clear()
+        self.tipo_sanguineo.setCurrentIndex(0)
+        self.tempo_faixa.clear()
+        self.contato_emergencia.clear()
+        self.alergias.clear()
+        self.condicoes_medicas.clear()
         self.faixa.setCurrentIndex(0)
         self.grau.setCurrentIndex(0)
         self.carregar_planos()  # Recarregar planos atualizados
@@ -652,7 +690,12 @@ class CadastroAlunoTab(BaseTab):
                 nome, cpf, email, telefone, cep,
                 endereco, data_nasc, faixa, grau, peso, altura,
                 plano, self.foto_path, self.certificado_path, 
-                biometria_json
+                biometria_json,
+                tipo_sanguineo=self.tipo_sanguineo.currentText().strip() or None,
+                contato_emergencia=self.contato_emergencia.text().strip() or None,
+                alergias=self.alergias.text().strip() or None,
+                condicoes_medicas=self.condicoes_medicas.text().strip() or None,
+                tempo_faixa=self.tempo_faixa.text().strip() or None,
             )
 
         AppDialog("Sucesso", "Cadastro realizado com sucesso!", ("OK",), self).exec()

@@ -202,21 +202,7 @@ class DashboardTab(BaseTab):
         """)
         btn_anual.clicked.connect(self.gerar_mensalidades_anuais)
 
-        btn_reload = QPushButton("🔄 Atualizar")
-        btn_reload.setFixedHeight(30)
-        btn_reload.setStyleSheet("""
-            QPushButton {
-                background: #161616; color: #b0b0b0;
-                font-size: 11px; font-weight: 500;
-                border: 1px solid #222222; border-radius: 6px; padding: 6px 12px;
-            }
-            QPushButton:hover  { background: #1e1e1e; color: #999999; }
-            QPushButton:pressed{ background: #111111; }
-        """)
-        btn_reload.clicked.connect(self.load)
-
         top.addWidget(btn_anual)
-        top.addWidget(btn_reload)
         layout.addLayout(top)
 
         # ── SCROLL AREA ──

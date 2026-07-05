@@ -45,7 +45,9 @@ class FichaAlunoDialog(QDialog):
         if self.tipo == "adulto":
             cur.execute("""
                 SELECT nome, cpf, email, telefone, cep, endereco, data_nascimento,
-                       faixa, grau, peso, altura, plano
+                       faixa, grau, peso, altura, plano,
+                       tipo_sanguineo, contato_emergencia, alergias,
+                       condicoes_medicas, tempo_faixa
                 FROM alunos WHERE id = ?
             """, (self.aluno_id,))
         else:
@@ -139,6 +141,14 @@ class FichaAlunoDialog(QDialog):
         ]
         if self.tipo == "kid" and len(dados) > 13:
             campos += [("Responsável", dados[12]), ("CPF do Responsável", dados[13])]
+        elif self.tipo == "adulto" and len(dados) > 16:
+            campos += [
+                ("Tempo de faixa", dados[16]),
+                ("Tipo sanguíneo", dados[12]),
+                ("Contato de emergência", dados[13]),
+                ("Alergias", dados[14]),
+                ("Condições médicas", dados[15]),
+            ]
 
         for rotulo, valor in campos:
             cl.addWidget(self._linha(rotulo, valor))
