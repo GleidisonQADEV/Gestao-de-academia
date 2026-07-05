@@ -16,6 +16,8 @@ a = Analysis(
     hiddenimports=[
         'PySide6.QtSvg',
         'PySide6.QtXml',
+        'reportlab',
+        'reportlab.graphics.barcode',
     ],
     hookspath=[],
     hooksconfig={},

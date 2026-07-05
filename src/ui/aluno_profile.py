@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem
-from database.db import get_conn
+from database.db import get_conn, obter_percentual_presenca
 
 
 class AlunoProfile(QWidget):
@@ -25,8 +25,11 @@ class AlunoProfile(QWidget):
         cur.execute("SELECT nome, cpf, telefone, faixa, email FROM alunos WHERE id=?", (self.aluno_id,))
         a = cur.fetchone()
 
+        pct, presencas = obter_percentual_presenca(self.aluno_id, "adulto")
+
         self.info.setText(
             f"<b>{a[0]}</b><br>CPF: {a[1]} | Tel: {a[2]} | Faixa: {a[3]}<br>{a[4]}"
+            f"<br>Presença no mês: <b>{pct:.1f}%</b> ({presencas} de 44 aulas)"
         )
 
         cur.execute("""

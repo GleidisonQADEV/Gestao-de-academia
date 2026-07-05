@@ -7,3 +7,4 @@ pytest-mock>=3.10.0
 
 # Dependências principais (caso não estejam instaladas)
 PySide6>=6.4.0
+reportlab>=4.0.0

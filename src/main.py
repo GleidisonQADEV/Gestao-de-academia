@@ -316,6 +316,27 @@ class MainWindow(QWidget):
         self._checker.update_available.connect(self._on_update_disponivel)
         self._checker.start()
 
+    def verificar_atualizacoes_manual(self):
+        """Verificação manual (botão em Configurações), com feedback ao usuário."""
+        self._manual_update_found = False
+        self._checker_manual = UpdateChecker(APP_VERSION, GITHUB_REPO, parent=self)
+        self._checker_manual.update_available.connect(self._on_update_manual)
+        self._checker_manual.finished.connect(self._on_checagem_manual_fim)
+        self._checker_manual.start()
+
+    def _on_update_manual(self, new_version: str, url: str):
+        self._manual_update_found = True
+        self._on_update_disponivel(new_version, url)
+        self._iniciar_download_update()
+
+    def _on_checagem_manual_fim(self):
+        if not getattr(self, "_manual_update_found", False):
+            show_info(
+                self, "Atualizações",
+                f"Você já está na versão mais recente (v{APP_VERSION})."
+            )
+
+
     def _on_update_disponivel(self, new_version: str, url: str):
         self._update_version = new_version
         self._update_url     = url

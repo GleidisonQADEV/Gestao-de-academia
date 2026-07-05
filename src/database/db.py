@@ -848,17 +848,24 @@ def registrar_presenca(aluno_id, tipo_aluno='adulto', horario_aula=None, biometr
     else:
         hora_entrada = agora.time().strftime('%H:%M:%S')
     
-    # Verificar se é dia de aula (segunda=0, quarta=2, sexta=4)
+    # Grade de aulas por dia da semana:
+    #  seg(0)/qua(2)/sex(4): 08:30, 17:30, 18:30  |  ter(1)/qui(3): 12:00
+    horarios_por_dia = {
+        0: ["08:30:00", "17:30:00", "18:30:00"],
+        2: ["08:30:00", "17:30:00", "18:30:00"],
+        4: ["08:30:00", "17:30:00", "18:30:00"],
+        1: ["12:00:00"],
+        3: ["12:00:00"],
+    }
     dia_semana = data_registro.weekday()
-    if dia_semana not in [0, 2, 4]:  # Segunda, Quarta, Sexta
+    if dia_semana not in horarios_por_dia:
         conn.close()
-        return False, "Não é dia de aula (Segunda, Quarta ou Sexta)"
-    
-    # Verificar horários válidos de aula
-    horarios_validos = ["08:30:00", "12:00:00", "18:30:00", "19:30:00"]
-    if horario_aula and horario_aula not in horarios_validos:
+        return False, "Não é dia de aula (Seg, Ter, Qua, Qui ou Sex)"
+
+    # Verificar horários válidos de aula para o dia
+    if horario_aula and horario_aula not in horarios_por_dia[dia_semana]:
         conn.close()
-        return False, f"Horário inválido. Aulas: {', '.join(horarios_validos)}"
+        return False, f"Horário inválido. Aulas do dia: {', '.join(horarios_por_dia[dia_semana])}"
     
     # Verificar se já tem registro hoje no mesmo horário
     cur.execute("""
@@ -880,6 +887,39 @@ def registrar_presenca(aluno_id, tipo_aluno='adulto', horario_aula=None, biometr
     conn.commit()
     conn.close()
     return True, "Presença registrada com sucesso"
+
+
+# Total de aulas oferecidas por mês:
+#  seg/qua/sex = 3 aulas/dia, ter/qui = 1 aula/dia  ->  (3*3 + 2*1) por semana = 11
+#  11 aulas/semana * 4 semanas = 44 aulas/mês.
+AULAS_POR_MES = 44
+
+
+def obter_percentual_presenca(aluno_id, tipo_aluno='adulto', ano=None, mes=None):
+    """Percentual de presença do aluno no mês, sobre as 44 aulas mensais.
+
+    Retorna (percentual, presencas_no_mes). O percentual é limitado a 100%.
+    """
+    from datetime import date
+
+    hoje = date.today()
+    ano = ano or hoje.year
+    mes = mes or hoje.month
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT COUNT(*) FROM registros_presenca
+        WHERE aluno_id = ? AND tipo_aluno = ?
+          AND strftime('%Y', data_registro) = ?
+          AND strftime('%m', data_registro) = ?
+    """, (aluno_id, tipo_aluno, str(ano), f"{mes:02d}"))
+    presencas = cur.fetchone()[0] or 0
+    conn.close()
+
+    pct = (presencas / AULAS_POR_MES) * 100 if AULAS_POR_MES else 0
+    return round(min(pct, 100.0), 1), presencas
+
 
 def obter_metricas_frequencia():
     """Obtém métricas de frequência considerando apenas dias de aula"""

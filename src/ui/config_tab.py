@@ -150,6 +150,8 @@ class ConfigTab(BaseTab):
         sec_planos_layout.addWidget(scroll_area)
 
         container_layout.addWidget(sec_planos)
+        container_layout.addWidget(self._build_secao_dados())
+        container_layout.addWidget(self._build_secao_sistema())
         container_layout.addStretch()
 
         wrapper_layout.addStretch()
@@ -158,6 +160,166 @@ class ConfigTab(BaseTab):
         layout.addWidget(wrapper)
 
         self.carregar_planos()
+
+    # ---------------- SEÇÕES EXTRAS ----------------
+
+    def _secao_frame(self, titulo, descricao):
+        frame = QFrame()
+        frame.setObjectName("secCardExtra")
+        frame.setStyleSheet(
+            "#secCardExtra { background: #161616; border: 1px solid #1e1e1e; border-radius: 10px; }"
+        )
+        vbox = QVBoxLayout(frame)
+        vbox.setContentsMargins(20, 16, 20, 16)
+        vbox.setSpacing(10)
+
+        lbl = QLabel(titulo)
+        lbl.setStyleSheet(
+            "color:#ffffff; font-size:14px; font-weight:600; background:transparent; border:none;"
+        )
+        vbox.addWidget(lbl)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("background: #1e1e1e; border: none; max-height: 1px;")
+        vbox.addWidget(sep)
+
+        if descricao:
+            desc = QLabel(descricao)
+            desc.setWordWrap(True)
+            desc.setStyleSheet("color:#555555; font-size:11px; background:transparent; border:none;")
+            vbox.addWidget(desc)
+
+        return frame, vbox
+
+    def _botao(self, texto, callback, primario=True):
+        b = QPushButton(texto)
+        b.setFixedHeight(34)
+        b.setCursor(Qt.PointingHandCursor)
+        if primario:
+            b.setStyleSheet("""
+                QPushButton { background: #cc1e1e; color: #ffffff; border: none;
+                    border-radius: 7px; font-size: 12px; font-weight: 600; padding: 0 16px; }
+                QPushButton:hover  { background: #e02020; }
+                QPushButton:pressed{ background: #a01515; }
+            """)
+        else:
+            b.setStyleSheet("""
+                QPushButton { background: #1e1e1e; color: #cccccc; border: 1px solid #2a2a2a;
+                    border-radius: 7px; font-size: 12px; font-weight: 600; padding: 0 16px; }
+                QPushButton:hover { background: #252525; color: #ffffff; }
+            """)
+        b.clicked.connect(callback)
+        return b
+
+    def _build_secao_dados(self):
+        frame, vbox = self._secao_frame(
+            "Dados",
+            "Importe alunos de uma planilha do Google Sheets ou exporte relatórios em PDF."
+        )
+
+        row_import = QHBoxLayout()
+        row_import.addWidget(QLabel())
+        row_import.addStretch()
+        row_import.addWidget(self._botao("Importar do Google Sheets", self.importar_google_sheets))
+        vbox.addLayout(row_import)
+
+        row_pdf = QHBoxLayout()
+        row_pdf.setSpacing(8)
+        row_pdf.addWidget(self._botao("PDF Financeiro", lambda: self.exportar_pdf("financeiro"), primario=False))
+        row_pdf.addWidget(self._botao("PDF Alunos", lambda: self.exportar_pdf("alunos"), primario=False))
+        row_pdf.addWidget(self._botao("PDF Frequência", lambda: self.exportar_pdf("frequencia"), primario=False))
+        row_pdf.addStretch()
+        vbox.addLayout(row_pdf)
+
+        return frame
+
+    def _build_secao_sistema(self):
+        frame, vbox = self._secao_frame(
+            "Sistema",
+            "Verifique atualizações do aplicativo e consulte a ajuda."
+        )
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addWidget(self._botao("Verificar atualizações", self.verificar_atualizacoes))
+        row.addWidget(self._botao("Ajuda / Tutorial", self.abrir_ajuda, primario=False))
+        row.addStretch()
+        vbox.addLayout(row)
+        return frame
+
+    def _find_main_window(self):
+        parent = self.parent()
+        while parent is not None and not hasattr(parent, "verificar_atualizacoes_manual"):
+            parent = parent.parent()
+        return parent
+
+    def importar_google_sheets(self):
+        url, ok = show_input(
+            self, "Importar do Google Sheets",
+            "Cole o link da planilha (compartilhada como 'qualquer pessoa com o link')."
+        )
+        if not ok or not url.strip():
+            return
+        try:
+            from utils.sheets_import import importar_alunos_de_url
+            resumo = importar_alunos_de_url(url.strip())
+        except Exception as e:
+            show_error(self, "Erro na importação", str(e))
+            return
+
+        msg = (
+            f"Importados: {resumo['importados']}\n"
+            f"Ignorados (duplicados/sem nome): {resumo['ignorados']}\n"
+            f"Erros: {len(resumo['erros'])}"
+        )
+        if resumo["erros"]:
+            msg += "\n\n" + "\n".join(resumo["erros"][:5])
+        show_info(self, "Importação concluída", msg)
+        self.notificar_atualizacao_planos()
+
+    def exportar_pdf(self, tipo):
+        from datetime import date
+        from PySide6.QtWidgets import QFileDialog
+
+        nomes = {
+            "financeiro": "relatorio_financeiro.pdf",
+            "alunos": "lista_alunos.pdf",
+            "frequencia": "relatorio_frequencia.pdf",
+        }
+        caminho, _ = QFileDialog.getSaveFileName(
+            self, "Salvar PDF", nomes.get(tipo, "relatorio.pdf"), "PDF (*.pdf)"
+        )
+        if not caminho:
+            return
+        if not caminho.lower().endswith(".pdf"):
+            caminho += ".pdf"
+
+        try:
+            from utils import pdf_report
+            hoje = date.today()
+            if tipo == "financeiro":
+                pdf_report.gerar_relatorio_financeiro(hoje.year, hoje.month, caminho)
+            elif tipo == "alunos":
+                pdf_report.gerar_lista_alunos(caminho)
+            elif tipo == "frequencia":
+                pdf_report.gerar_relatorio_frequencia(caminho)
+            else:
+                return
+        except Exception as e:
+            show_error(self, "Erro ao gerar PDF", str(e))
+            return
+        show_info(self, "PDF gerado", f"Arquivo salvo em:\n{caminho}")
+
+    def verificar_atualizacoes(self):
+        main = self._find_main_window()
+        if main is not None:
+            main.verificar_atualizacoes_manual()
+        else:
+            show_info(self, "Atualizações", "Não foi possível iniciar a verificação.")
+
+    def abrir_ajuda(self):
+        from .help_dialog import HelpDialog
+        HelpDialog(self).exec()
 
     def trocar_senha(self):
         dialog = ChangePasswordDialog("admin")

@@ -16,7 +16,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install PySide6==6.10.1 pyinstaller
+        run: pip install PySide6==6.10.1 reportlab==4.4.7 pyinstaller
 
       - name: Build app
         run: pyinstaller LegacyBJJ.spec
@@ -48,7 +48,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install PySide6==6.10.1 pyinstaller
+        run: pip install PySide6==6.10.1 reportlab==4.4.7 pyinstaller
 
       - name: Build exe
         run: pyinstaller LegacyBJJ.spec
