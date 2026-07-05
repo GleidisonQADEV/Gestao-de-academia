@@ -72,8 +72,8 @@ if sys.platform == 'darwin':
         icon=str(ROOT / 'src' / 'assets' / 'icon.icns'),
         bundle_identifier='com.legacybjj.app',
         info_plist={
-            'CFBundleShortVersionString': '1.2.4',
-            'CFBundleVersion':            '1.2.4',
+            'CFBundleShortVersionString': '1.2.5',
+            'CFBundleVersion':            '1.2.5',
             'NSHighResolutionCapable':    True,
         },
     )
