@@ -81,6 +81,31 @@ class FinanceiroTab(BaseTab):
                 background-color: #cc1e1e; color: white; font-weight: bold;
             }
         """
+        _search_style = """
+            QLineEdit {
+                background-color: #0e0e0e;
+                padding: 7px 12px;
+                border-radius: 10px;
+                border: 1px solid #1e1e1e;
+                font-size: 13px;
+                color: #ffffff;
+                min-width: 180px;
+            }
+            QLineEdit:focus { border: 1.5px solid #cc1e1e; }
+        """
+        self.busca_nome = QLineEdit()
+        self.busca_nome.setPlaceholderText("Buscar por nome...")
+        self.busca_nome.setClearButtonEnabled(True)
+        self.busca_nome.setStyleSheet(_search_style)
+        self.busca_nome.textChanged.connect(self.filtrar_dados)
+        top_row.addWidget(self.busca_nome)
+
+        self.tipo_filter = QComboBox()
+        self.tipo_filter.addItems(["Todos", "Adulto", "Kids"])
+        self.tipo_filter.setStyleSheet(_combo_style)
+        self.tipo_filter.currentTextChanged.connect(self.filtrar_dados)
+        top_row.addWidget(self.tipo_filter)
+
         self.status_filter = QComboBox()
         self.status_filter.addItems(["Todos", "PENDENTE", "PAGO"])
         self.status_filter.setStyleSheet(_combo_style)
@@ -783,6 +808,41 @@ class FinanceiroTab(BaseTab):
         # Carregar mensalidades do mês
         self.carregar_mensalidades_mes(index + 1)  # +1 porque mês começa em 1
         
+    @staticmethod
+    def filtrar_mensalidades(mensalidades, mes, tipo="Todos", termo=""):
+        """Filtra a lista de mensalidades por mês, tipo (Adulto/Kids) e nome.
+
+        Formato de cada mensalidade (listar_mensalidades):
+        [1]=nome, [3]=data_vencimento (YYYY-MM-DD), [9]=tipo_aluno ('adulto'/'kid').
+        """
+        tipo_map = {"Adulto": "adulto", "Kids": "kid"}
+        termo = (termo or "").strip().lower()
+        resultado = []
+
+        for mensalidade in mensalidades:
+            # Filtro por mês (data de vencimento)
+            data_venc = mensalidade[3] if len(mensalidade) > 3 else ''
+            if not (data_venc and len(data_venc) >= 7):
+                continue
+            if int(data_venc.split('-')[1]) != mes:
+                continue
+
+            # Filtro por tipo de aluno
+            if tipo in tipo_map:
+                tipo_aluno = mensalidade[9] if len(mensalidade) > 9 else ""
+                if tipo_aluno != tipo_map[tipo]:
+                    continue
+
+            # Filtro por nome
+            if termo:
+                nome = (mensalidade[1] or "").lower()
+                if termo not in nome:
+                    continue
+
+            resultado.append(mensalidade)
+
+        return resultado
+
     def carregar_mensalidades_mes(self, mes):
         """Carrega mensalidades do mês específico"""
         try:
@@ -806,17 +866,12 @@ class FinanceiroTab(BaseTab):
                 mensalidades = listar_mensalidades()
             else:
                 mensalidades = listar_mensalidades(status)
-            
-            mensalidades_mes = []
-            
-            for mensalidade in mensalidades:
-                # Verificar se a mensalidade é do mês desejado
-                # dados[3] = data_vencimento
-                data_venc = mensalidade[3] if len(mensalidade) > 3 else ''
-                if data_venc and len(data_venc) >= 7:  # YYYY-MM-DD
-                    mes_mensalidade = int(data_venc.split('-')[1])
-                    if mes_mensalidade == mes:
-                        mensalidades_mes.append(mensalidade)
+
+            # Filtros adicionais: tipo (Adulto/Kids) e busca por nome
+            tipo = self.tipo_filter.currentText() if hasattr(self, "tipo_filter") else "Todos"
+            termo = self.busca_nome.text() if hasattr(self, "busca_nome") else ""
+
+            mensalidades_mes = self.filtrar_mensalidades(mensalidades, mes, tipo, termo)
             
             if mensalidades_mes:
                 for mensalidade in mensalidades_mes:
