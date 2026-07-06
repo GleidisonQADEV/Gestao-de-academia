@@ -484,6 +484,25 @@ class AlunosTab(BaseTab):
         """)
         self.combo_faixa.currentIndexChanged.connect(self._on_filter_changed)
         search_row.addWidget(self.combo_faixa)
+
+        self.combo_tipo = QComboBox()
+        self.combo_tipo.addItems(["Todos", "Adulto", "Dependente", "Kids"])
+        self.combo_tipo.setFixedHeight(32)
+        self.combo_tipo.setStyleSheet("""
+            QComboBox {
+                background: #161616; border: 1px solid #1e1e1e;
+                border-radius: 7px; color: #a0a0a0;
+                font-size: 11px; padding: 0 8px;
+            }
+            QComboBox::drop-down { border: none; width: 20px; }
+            QComboBox QAbstractItemView {
+                background: #161616; border: 1px solid #1e1e1e;
+                color: #888888; selection-background-color: #cc1e1e;
+            }
+        """)
+        self.combo_tipo.currentIndexChanged.connect(self._on_filter_changed)
+        search_row.addWidget(self.combo_tipo)
+
         root.addLayout(search_row)
 
         # ── TABLE CONTAINER ──
@@ -732,7 +751,8 @@ class AlunosTab(BaseTab):
 
     def _on_search_changed(self, text):
         if not text.strip():
-            self._populate_table(self.registros)
+            # Reaplica os filtros (faixa/tipo) ao limpar a busca
+            self.buscar()
 
     def _on_filter_changed(self, _):
         self.buscar()
@@ -1482,10 +1502,23 @@ class AlunosTab(BaseTab):
         self.carregar_dados()
         termo = self.busca.text().lower().strip()
         faixa_filtro = self.combo_faixa.currentText() if hasattr(self, 'combo_faixa') else "Todas as faixas"
+        tipo_filtro = self.combo_tipo.currentText() if hasattr(self, 'combo_tipo') else "Todos"
 
         candidatos = self.registros
         if faixa_filtro and faixa_filtro != "Todas as faixas":
             candidatos = [r for r in candidatos if r.get('faixa', '') == faixa_filtro]
+
+        if tipo_filtro == "Adulto":
+            candidatos = [r for r in candidatos
+                          if r.get('tipo') == 'adulto' and not r.get('responsavel_id')]
+        elif tipo_filtro == "Kids":
+            candidatos = [r for r in candidatos if r.get('tipo') == 'kids']
+        elif tipo_filtro == "Dependente":
+            candidatos = [
+                r for r in candidatos
+                if (r.get('tipo') == 'adulto' and r.get('responsavel_id'))
+                or (r.get('tipo') == 'kids' and (r.get('plano') or '') == 'Dependente')
+            ]
 
         if not termo:
             self._populate_table(candidatos)
