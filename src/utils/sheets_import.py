@@ -511,10 +511,13 @@ def importar_kids_de_url(url: str, plano_padrao: str = "Kids (5-13) - R$150"):
         resp_cpf = re.sub(r"\D", "", _val(linha, "resp_cpf"))
         resp_nome = _norm_nome(_val(linha, "resp_nome"))
 
-        # Vinculação: se o responsável é um aluno adulto cadastrado
+        # Se o responsável é um aluno adulto cadastrado, o Kid vira DEPENDENTE
+        # (plano 'Dependente', sem faturamento próprio).
         adulto = _buscar_adulto_por_cpf(resp_cpf)
+        plano_kid = plano_padrao
         if adulto:
             resp_nome = adulto[1]  # nome oficial do responsável cadastrado
+            plano_kid = "Dependente"
             vinculados += 1
 
         try:
@@ -528,7 +531,7 @@ def importar_kids_de_url(url: str, plano_padrao: str = "Kids (5-13) - R$150"):
                 _norm_faixa_kid(_val(linha, "faixa")),
                 _norm_grau(_val(linha, "grau")),
                 "", "",
-                plano_padrao,
+                plano_kid,
                 None, None,
             )
             importados += 1

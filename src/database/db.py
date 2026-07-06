@@ -154,9 +154,15 @@ def init_db():
             ("Família: 2 adultos + 1 kids", 450.0),
             ("Família: 1 adulto + 2 kids", 430.0),
             ("Família: 1 adulto + 3 kids", 500.0),
-            ("Plano Bolsista (Patrocinado)", 0.0)
+            ("Plano Bolsista (Patrocinado)", 0.0),
+            ("Dependente", 0.0),
         ]
         cur.executemany("INSERT INTO planos (nome, valor) VALUES (?, ?)", planos_padrao)
+
+    # Garante que o plano "Dependente" exista (para bancos já criados)
+    cur.execute("SELECT 1 FROM planos WHERE nome = 'Dependente'")
+    if not cur.fetchone():
+        cur.execute("INSERT INTO planos (nome, valor) VALUES ('Dependente', 0.0)")
 
     # ---- tabela kids ----
     cur.execute("""
@@ -725,13 +731,26 @@ def atualizar_mensalidades_por_plano(aluno_id, plano_str):
 
 
 def definir_plano_aluno(aluno_id, plano_str, tipo="adulto"):
-    """Define o plano de um aluno (adulto ou kid) diretamente."""
+    """Define o plano de um aluno (adulto ou kid) diretamente.
+
+    Se o plano não for faturável (ex.: 'Dependente', 'Bolsista' ou sem valor),
+    remove as mensalidades PENDENTES do aluno (não deve constar no faturamento).
+    """
     conn = get_conn()
     cur = conn.cursor()
     if tipo == "adulto":
         cur.execute("UPDATE alunos SET plano=? WHERE id=?", (plano_str, aluno_id))
+        id_mens = aluno_id
     else:
         cur.execute("UPDATE kids SET plano=? WHERE id=?", (plano_str, aluno_id))
+        id_mens = -aluno_id
+
+    valor = _extrair_valor_plano(plano_str)
+    if not valor:  # None ou 0 -> não faturável
+        cur.execute(
+            "DELETE FROM mensalidades WHERE aluno_id=? AND status='PENDENTE'",
+            (id_mens,),
+        )
     conn.commit()
     conn.close()
 

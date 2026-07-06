@@ -66,6 +66,17 @@ class TestMensalidades:
         conn.close()
         assert qtd >= 1 and valor == 180.0
 
+    def test_definir_plano_dependente_remove_pendentes(self, temp_db):
+        aid = _novo_aluno("Adulto - R$180")
+        db.gerar_mensalidades_anuais(date.today().year)
+        # aplicar plano nao faturavel ('Dependente') remove as pendentes
+        db.definir_plano_aluno(aid, "Dependente", "adulto")
+        conn = db.get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM mensalidades WHERE aluno_id=? AND status='PENDENTE'", (aid,))
+        assert cur.fetchone()[0] == 0
+        conn.close()
+
 
 class TestPresenca:
     def test_percentual_sem_registros(self, temp_db):

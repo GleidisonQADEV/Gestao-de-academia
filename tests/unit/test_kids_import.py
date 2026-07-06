@@ -53,16 +53,25 @@ class TestImportacaoKids:
         import database.kids_db as kids_db
         conn = kids_db.get_conn()
         cur = conn.cursor()
-        cur.execute("SELECT nome, faixa, resp_nome, resp_cpf, data_nascimento FROM kids ORDER BY nome")
+        cur.execute("SELECT nome, faixa, resp_nome, resp_cpf, data_nascimento, plano, id FROM kids ORDER BY nome")
         rows = cur.fetchall()
         conn.close()
-        # Camilla vinculada -> resp_nome oficial "Fernanda Demarchi"
+        # Camilla vinculada -> resp_nome oficial "Fernanda Demarchi" e plano Dependente
         camilla = next(r for r in rows if r[0].startswith("Camilla"))
         assert camilla[2] == "Fernanda Demarchi"
         assert camilla[3] == "00484892045"
         assert camilla[4] == "2010-02-16"
+        assert camilla[5] == "Dependente"
+        # Kid dependente NÃO gera mensalidade
+        conn = db.get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM mensalidades WHERE aluno_id=?", (-camilla[6],))
+        assert cur.fetchone()[0] == 0
+        conn.close()
+        # Luiza (responsável não cadastrado) fica com o plano Kids normal
         luiza = next(r for r in rows if r[0].startswith("Luiza"))
         assert luiza[1] == "Amarela c/b"
+        assert luiza[5] == "Kids (5-13) - R$150"
 
     def test_kids_sem_cpf_nao_colidem(self, temp_db, monkeypatch):
         csv = "\n".join([
