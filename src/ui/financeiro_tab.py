@@ -548,14 +548,18 @@ class FinanceiroTab(BaseTab):
             return
             
         mensalidade_id = self.mensalidade_atual[0]
-        # Obter dados completos da mensalidade
+        # Obter dados completos da mensalidade (adultos e kids: aluno_id negativo = kid)
         from database.db import get_conn
         conn = get_conn()
         cur = conn.cursor()
         cur.execute("""
-            SELECT m.*, a.nome, a.plano 
+            SELECT m.id, m.aluno_id, m.valor, m.data_vencimento, m.data_pagamento,
+                   m.status, m.observacoes, m.criado_em,
+                   COALESCE(a.nome, k.nome)  AS nome,
+                   COALESCE(a.plano, k.plano) AS plano
             FROM mensalidades m
-            JOIN alunos a ON m.aluno_id = a.id 
+            LEFT JOIN alunos a ON m.aluno_id = a.id
+            LEFT JOIN kids   k ON m.aluno_id = -k.id
             WHERE m.id=?
         """, (mensalidade_id,))
         dados = cur.fetchone()
@@ -1012,7 +1016,7 @@ class EditarMensalidadeDialog(FinanceiroDialog):
     def __init__(self, parent, dados):
         super().__init__("Editar Mensalidade", parent)
         self.dados = dados
-        self.setFixedSize(500, 680)
+        self.setFixedSize(500, 380)
         self.build_ui()
         self.preencher_campos()
 
@@ -1073,53 +1077,20 @@ class EditarMensalidadeDialog(FinanceiroDialog):
         label_plano.setStyleSheet(_label_style)
         form_layout.addRow(label_plano, self.plano_combo)
 
-        self.valor_input = QLineEdit()
-        self.valor_input.setPlaceholderText("Digite o valor da mensalidade")
-        self.valor_input.setStyleSheet(_field_style)
-        label_valor = QLabel("Valor (R$):")
-        label_valor.setStyleSheet(_label_style)
-        form_layout.addRow(label_valor, self.valor_input)
-
-        self.data_venc = QDateEdit()
-        self.data_venc.setCalendarPopup(True)
-        self.data_venc.setDisplayFormat("dd/MM/yyyy")
-        self.data_venc.setStyleSheet(_field_style)
-        label_data = QLabel("Data de Vencimento:")
-        label_data.setStyleSheet(_label_style)
-        form_layout.addRow(label_data, self.data_venc)
-
         self.status_combo = QComboBox()
         self.status_combo.addItems(["PENDENTE", "PAGO", "VENCIDO"])
         self.status_combo.setStyleSheet(_field_style)
-        label_status = QLabel("Status:")
+        label_status = QLabel("Status do pagamento:")
         label_status.setStyleSheet(_label_style)
         form_layout.addRow(label_status, self.status_combo)
 
-        self.obs_input = QTextEdit()
-        self.obs_input.setMaximumHeight(70)
-        self.obs_input.setPlaceholderText("Observações (opcional)")
-        self.obs_input.setStyleSheet(_field_style)
-        label_obs = QLabel("Observações:")
-        label_obs.setStyleSheet(_label_style)
-        form_layout.addRow(label_obs, self.obs_input)
-
         self.content_layout.addWidget(form_widget)
 
-        btn_vincular = QPushButton("Vincular a Responsável")
-        btn_vincular.setFixedHeight(34)
-        btn_vincular.setStyleSheet("""
-            QPushButton {
-                background: #1e1e1e; color: #888888;
-                border: 1px solid #2a2a2a; border-radius: 7px;
-                font-size: 12px; font-weight: 500; padding: 0 14px;
-            }
-            QPushButton:hover { background: #252525; color: #cccccc; }
-        """)
-        btn_vincular.clicked.connect(self.vincular_mensalidade)
-        buttons_area = QHBoxLayout()
-        buttons_area.addWidget(btn_vincular)
-        buttons_area.addStretch()
-        self.content_layout.addLayout(buttons_area)
+        dica = QLabel("Só é possível alterar o plano e o status do pagamento. "
+                      "O valor da mensalidade é ajustado conforme o plano.")
+        dica.setWordWrap(True)
+        dica.setStyleSheet("color:#888888; font-size:11px; background:transparent; border:none;")
+        self.content_layout.addWidget(dica)
 
         self.add_button("Cancelar", self.reject, False)
         self.add_button("Salvar Alterações", self.salvar_alteracoes, True)
@@ -1139,11 +1110,9 @@ class EditarMensalidadeDialog(FinanceiroDialog):
             ])
 
     def preencher_campos(self):
-        """Preenche os campos com os dados atuais da mensalidade"""
-        # Mensalidades: id(0) aluno_id(1) valor(2) data_vencimento(3) data_pagamento(4)
-        #               status(5) observacoes(6) criado_em(7) a.nome(8) a.plano(9)
-
-        # Plano (índice 9 = a.plano da query)
+        """Preenche os campos com os dados atuais da mensalidade (plano e status)."""
+        # id(0) aluno_id(1) valor(2) data_vencimento(3) data_pagamento(4)
+        # status(5) observacoes(6) criado_em(7) nome(8) plano(9)
         try:
             plano_atual = self.dados[9] if self.dados[9] else "Adulto - R$180"
             index = self.plano_combo.findText(plano_atual)
@@ -1154,63 +1123,51 @@ class EditarMensalidadeDialog(FinanceiroDialog):
         except Exception:
             pass
 
-        # Valor
-        self.valor_input.setText(str(self.dados[2]))  # valor
-
-        # Data de vencimento
-        try:
-            data_venc = datetime.strptime(self.dados[3], "%Y-%m-%d").date()
-            self.data_venc.setDate(QDate(data_venc.year, data_venc.month, data_venc.day))
-        except Exception:
-            self.data_venc.setDate(QDate.currentDate())
-
-        # Status (índice 5)
         status = self.dados[5].upper() if self.dados[5] else "PENDENTE"
         index = self.status_combo.findText(status)
         if index >= 0:
             self.status_combo.setCurrentIndex(index)
 
-        # Observações (índice 6)
-        obs = self.dados[6] or ""
-        self.obs_input.setPlainText(obs)
-
-    def vincular_mensalidade(self):
-        """Vincula um aluno existente a um responsável (usando função utilitária)"""
-        from utils.vincular_utils import vincular_aluno_responsavel
-        
-        if vincular_aluno_responsavel(self):
-            # Recarregar dados se possível
-            if hasattr(self, 'load'):
-                self.load()
-
     def salvar_alteracoes(self):
-        """Salva as alterações da mensalidade"""
+        """Salva apenas o plano e o status; o valor é derivado do plano."""
         try:
-            plano_texto = self.plano_combo.currentText()
-            valor = float(self.valor_input.text().replace(",", "."))
-            data_venc = self.data_venc.date().toString("yyyy-MM-dd")
+            from database.db import get_conn, _extrair_valor_plano
+            plano_texto = self.plano_combo.currentText().strip()
             status = self.status_combo.currentText()
-            obs = self.obs_input.toPlainText()
-            
-            mensalidade_id = self.dados[0]  # id
-            
-            # Atualizar no banco de dados
-            from database.db import get_conn
+            mensalidade_id = self.dados[0]
+            aluno_id = self.dados[1]
+
+            valor = _extrair_valor_plano(plano_texto)
+
             conn = get_conn()
             cur = conn.cursor()
-            cur.execute("""
-                UPDATE mensalidades 
-                SET valor=?, data_vencimento=?, status=?, observacoes=?
-                WHERE id=?
-            """, (valor, data_venc, status, obs, mensalidade_id))
+
+            # Atualiza o plano do aluno/kid (aluno_id negativo = kid)
+            if aluno_id is not None and aluno_id >= 0:
+                cur.execute("UPDATE alunos SET plano=? WHERE id=?", (plano_texto, aluno_id))
+            elif aluno_id is not None:
+                cur.execute("UPDATE kids SET plano=? WHERE id=?", (plano_texto, -aluno_id))
+
+            # Atualiza a mensalidade: status (+ valor se o plano tiver valor)
+            campos = ["status=?"]
+            params = [status]
+            if valor is not None:
+                campos.append("valor=?")
+                params.append(valor)
+            if status == "PAGO":
+                campos.append("data_pagamento=?")
+                params.append(date.today().isoformat())
+            else:
+                campos.append("data_pagamento=?")
+                params.append(None)
+            params.append(mensalidade_id)
+            cur.execute(f"UPDATE mensalidades SET {', '.join(campos)} WHERE id=?", params)
+
             conn.commit()
             conn.close()
-            
-            show_info(self, "Sucesso", f"Mensalidade atualizada com sucesso!\n\nPlano: {plano_texto}\nValor: R$ {valor:.2f}")
+
+            show_info(self, "Sucesso", "Mensalidade atualizada com sucesso!")
             self.accept()
-            
-        except ValueError:
-            show_error(self, "Erro", "Valor inválido. Use apenas números (ex: 180.00)")
         except Exception as e:
             show_error(self, "Erro ao salvar alterações", f"Erro: {str(e)}")
 
