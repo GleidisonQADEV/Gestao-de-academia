@@ -16,6 +16,16 @@ class TestNormalizacao:
         assert si._norm_faixa("0") == "Branca"
         assert si._norm_faixa("?") == "Branca"
         assert si._norm_faixa("") == "Branca"
+        # valor desconhecido -> Branca
+        assert si._norm_faixa("xpto") == "Branca"
+        assert si._norm_faixa("Sem grau") == "Branca"
+
+    def test_faixa_reconhecida(self):
+        assert si._faixa_reconhecida("Azul") is True
+        assert si._faixa_reconhecida("Amarela com branco") is True
+        assert si._faixa_reconhecida("") is False
+        assert si._faixa_reconhecida("xpto") is False
+        assert si._faixa_reconhecida("1 dia") is False
 
     def test_norm_grau(self):
         assert si._norm_grau("1") == "1 Grau"
@@ -120,3 +130,21 @@ class TestImportacaoCompleta:
         resumo = si.importar_alunos_de_url("x", plano_padrao="Adulto - R$180")
         assert resumo["importados"] == 1
         assert resumo["ignorados"] == 2
+
+    def test_faixa_invalida_vira_branca_sem_grau(self, temp_db, monkeypatch):
+        csv = "\n".join([
+            "Nome completo,CPF,Faixa,Graus",
+            "Sem Faixa,11111111111,,3",          # faixa vazia
+            "Faixa Errada,22222222222,xpto,4",   # faixa invalida
+            "Valida,33333333333,Azul,2",         # faixa valida
+        ])
+        monkeypatch.setattr(si, "_baixar_csv_robusto", lambda url: csv)
+        si.importar_alunos_de_url("x", plano_padrao="Adulto - R$180")
+        conn = db.get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT nome, faixa, grau FROM alunos ORDER BY nome")
+        rows = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
+        conn.close()
+        assert rows["Sem Faixa"] == ("Branca", "Sem grau")
+        assert rows["Faixa Errada"] == ("Branca", "Sem grau")
+        assert rows["Valida"] == ("Azul", "2 Graus")

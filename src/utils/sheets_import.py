@@ -105,12 +105,25 @@ _FAIXAS_VALIDAS = {
     "cinza": "Cinza", "amarela": "Amarela", "laranja": "Laranja", "verde": "Verde",
 }
 
+# Palavras-chave de cores de faixa reconhecidas (para validar o valor da planilha)
+_CORES_FAIXA = ("branca", "azul", "roxa", "marrom", "marron", "preta",
+                "cinza", "amarela", "laranja", "verde")
+
+
+def _faixa_reconhecida(valor: str) -> bool:
+    """True se o valor contém uma cor de faixa válida."""
+    v = (valor or "").strip().lower()
+    if not v:
+        return False
+    return any(cor in v for cor in _CORES_FAIXA)
+
 
 def _norm_faixa(valor: str) -> str:
+    """Normaliza faixa de adulto; valor vazio/desconhecido -> 'Branca'."""
     v = (valor or "").strip().lower()
-    if not v or v in {"0", "?", "-", "n/a", "na"}:
-        return "Branca"
-    return _FAIXAS_VALIDAS.get(v, valor.strip().title())
+    if v in _FAIXAS_VALIDAS:
+        return _FAIXAS_VALIDAS[v]
+    return "Branca"
 
 
 _GRAUS = {
@@ -328,6 +341,15 @@ def importar_alunos_de_url(url: str, plano_padrao: str = None):
         else:
             condicoes = cond or cond_esp
 
+        # Faixa inválida/vazia -> Branca sem graus
+        _raw_faixa = _val(linha, "faixa")
+        if _faixa_reconhecida(_raw_faixa):
+            _faixa = _norm_faixa(_raw_faixa)
+            _grau = _norm_grau(_val(linha, "grau"))
+        else:
+            _faixa = "Branca"
+            _grau = "Sem grau"
+
         try:
             inserir_aluno(
                 nome=nome,
@@ -337,8 +359,8 @@ def importar_alunos_de_url(url: str, plano_padrao: str = None):
                 cep=_val(linha, "cep"),
                 endereco=_val(linha, "endereco"),
                 data_nasc=_conv_data(_val(linha, "data_nasc")),
-                faixa=_norm_faixa(_val(linha, "faixa")),
-                grau=_norm_grau(_val(linha, "grau")),
+                faixa=_faixa,
+                grau=_grau,
                 peso=_val(linha, "peso"),
                 altura=_val(linha, "altura"),
                 plano=_val(linha, "plano") or plano_padrao,
@@ -418,7 +440,7 @@ def _norm_faixa_kid(valor: str) -> str:
             base = b
             break
     if not base:
-        return valor.strip().title()
+        return "Branca"
     if base in ("Branca", "Azul", "Roxa", "Marrom", "Preta"):
         return base
     # Faixas kids têm variantes com ponta branca (c/b) e com ponta preta (c/p)
@@ -520,6 +542,15 @@ def importar_kids_de_url(url: str, plano_padrao: str = "Kids (5-13) - R$150"):
             plano_kid = "Dependente"
             vinculados += 1
 
+        # Faixa inválida/vazia -> Branca sem graus
+        _raw_faixa = _val(linha, "faixa")
+        if _faixa_reconhecida(_raw_faixa):
+            _faixa = _norm_faixa_kid(_raw_faixa)
+            _grau = _norm_grau(_val(linha, "grau"))
+        else:
+            _faixa = "Branca"
+            _grau = "Sem grau"
+
         try:
             inserir_kid(
                 nome, cpf_kid or None, resp_nome or "", resp_cpf or "",
@@ -528,8 +559,8 @@ def importar_kids_de_url(url: str, plano_padrao: str = "Kids (5-13) - R$150"):
                 _val(linha, "cep"),
                 _val(linha, "endereco"),
                 _conv_data(_val(linha, "data_nasc")),
-                _norm_faixa_kid(_val(linha, "faixa")),
-                _norm_grau(_val(linha, "grau")),
+                _faixa,
+                _grau,
                 "", "",
                 plano_kid,
                 None, None,
