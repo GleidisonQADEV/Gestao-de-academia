@@ -2155,8 +2155,41 @@ class EdicaoAlunoDialog(QDialog):
         self.carregar_planos_edicao()  # Carrega planos dinâmicos
         self.plano.setFixedWidth(INPUT_W)
         self.plano.setStyleSheet(input_style)
+        self.plano.currentTextChanged.connect(self.toggle_plano_personalizado_edicao)
         form.addLayout(row("Plano:", self.plano))
-        
+
+        # Valor do plano personalizado (aparece só quando "Plano Personalizado")
+        self.valor_personalizado = QLineEdit()
+        self.valor_personalizado.setPlaceholderText("Digite o valor (ex: 99.90)")
+        self.valor_personalizado.setFixedWidth(INPUT_W)
+        self.valor_personalizado.setStyleSheet(input_style)
+        self.valor_plano_wrap = QWidget()
+        self.valor_plano_wrap.setStyleSheet("background: transparent;")
+        _vpl = QHBoxLayout(self.valor_plano_wrap)
+        _vpl.setContentsMargins(0, 0, 0, 0)
+        _vpl.addLayout(row("Valor do Plano:", self.valor_personalizado))
+        form.addWidget(self.valor_plano_wrap)
+        self.valor_plano_wrap.setVisible(False)
+
+        # Botão vincular a responsável (para adultos)
+        self.btn_vincular_edicao = QPushButton("Vincular a Responsável")
+        self.btn_vincular_edicao.setFixedHeight(34)
+        self.btn_vincular_edicao.setCursor(Qt.PointingHandCursor)
+        self.btn_vincular_edicao.setStyleSheet("""
+            QPushButton {
+                background: transparent; color: #b0b0b0;
+                border: 1px solid #2a2a2a; border-radius: 7px;
+                font-size: 12px; font-weight: 500; padding: 0 16px;
+            }
+            QPushButton:hover { color: #ffffff; border-color: #444444; background: #1a1a1a; }
+        """)
+        self.btn_vincular_edicao.clicked.connect(self.vincular_responsavel_edicao)
+        self.btn_vincular_edicao.setVisible(self.dados_aluno.get("tipo") == "adulto")
+        _vinc_row = QHBoxLayout()
+        _vinc_row.addStretch()
+        _vinc_row.addWidget(self.btn_vincular_edicao)
+        form.addLayout(_vinc_row)
+
         # -------- ARQUIVOS & BIOMETRIA --------
         self.foto_label = QLabel()
         self.foto_label.setObjectName("fotoLabel")
@@ -2508,6 +2541,17 @@ class EdicaoAlunoDialog(QDialog):
                     
         return erros
         
+    def toggle_plano_personalizado_edicao(self, texto):
+        """Mostra o campo de valor quando o plano é 'Plano Personalizado'."""
+        if hasattr(self, "valor_plano_wrap"):
+            self.valor_plano_wrap.setVisible(texto == "Plano Personalizado")
+
+    def vincular_responsavel_edicao(self):
+        """Vincula este aluno a um responsável e fecha o diálogo ao concluir."""
+        from utils.vincular_utils import vincular_aluno_responsavel
+        if vincular_aluno_responsavel(self):
+            self.accept()
+
     def salvar(self):
         """Salva as alterações"""
         erros_validacao = self.validar_campos()
@@ -2533,8 +2577,13 @@ class EdicaoAlunoDialog(QDialog):
             peso = self.peso.text().strip()
             altura = self.altura.text().strip()
             plano = self.plano.currentText().strip()
-            
-            # Converter biometria para JSON se existir
+            if plano == "Plano Personalizado":
+                valor = self.valor_personalizado.text().strip()
+                if not valor:
+                    show_error(self, "Plano personalizado", "Informe o valor do plano personalizado.")
+                    return
+                plano = f"Personalizado - R${valor}"
+
             import json
             biometria_json = json.dumps(self.biometria_data) if self.biometria_data else None
             
