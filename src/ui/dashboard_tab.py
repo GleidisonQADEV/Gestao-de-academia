@@ -668,10 +668,15 @@ class DashboardTab(BaseTab):
     def _get_filtered(self):
         all_s = self.metricas.get('all_students_list', [])
         if self._filter == "todos":
-            filtered = all_s
-        else:
-            filtered = [s for s in all_s if s.get('tipo') == self._filter]
-        return filtered
+            return all_s
+        if self._filter == "dependentes":
+            # adultos vinculados a um responsável OU kids com plano 'Dependente'
+            return [
+                s for s in all_s
+                if s.get('tipo') == 'dependentes'
+                or (s.get('tipo') == 'kids' and (s.get('plano') or '') == 'Dependente')
+            ]
+        return [s for s in all_s if s.get('tipo') == self._filter]
 
     def _apply_filter(self, key):
         self._filter = key
