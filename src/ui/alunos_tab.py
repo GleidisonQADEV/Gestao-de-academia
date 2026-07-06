@@ -9,8 +9,8 @@ from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap, QPalette, QBrush
 
 from ui.base_tab import BaseTab
-from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes, atualizar_mensalidades_por_plano, definir_plano_aluno, gerar_mensalidades_anuais, get_planos_formatados
-from database.kids_db import get_conn, atualizar_kid, cpf_kid_existe
+from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes, atualizar_mensalidades_por_plano, definir_plano_aluno, gerar_mensalidades_anuais, get_planos_formatados, obter_dependentes, reatribuir_dependentes, desvincular_dependentes
+from database.kids_db import get_conn, atualizar_kid, cpf_kid_existe, excluir_kid
 from ui.app_dialog import show_info, show_warning, show_error, show_question, show_custom, show_input, show_combo
 
 # ================= ESTILOS CSS =================
@@ -836,11 +836,7 @@ class AlunosTab(BaseTab):
                 if d.get("tipo") == "adulto":
                     excluir_aluno(d["id"])
                 else:
-                    conn = get_conn()
-                    cur = conn.cursor()
-                    cur.execute("DELETE FROM kids WHERE id=?", (d["id"],))
-                    conn.commit()
-                    conn.close()
+                    excluir_kid(d["id"])
             except Exception:
                 erros += 1
 
@@ -1640,48 +1636,57 @@ class AlunosTab(BaseTab):
         d = self.aluno_atual
         nome = d["nome"]
         tipo = "Adulto" if d["tipo"] == "adulto" else "Criança"
-        
-        # Verificar se é responsável com dependentes
-        tem_dependentes = False
+
+        # Verificar dependentes (adultos vinculados + kids do mesmo CPF)
+        dependentes = {"adultos": [], "kids": []}
         if d["tipo"] == "adulto":
-            for registro in self.registros:
-                if (registro["tipo"] == "kids" and 
-                    registro.get("responsavel_cpf") == d["cpf"]):
-                    tem_dependentes = True
-                    break
-        
-        # Mensagem de confirmação mais detalhada
+            dependentes = obter_dependentes(d["id"], d.get("cpf"))
+        lista_dep = list(dependentes["adultos"]) + list(dependentes["kids"])
+        total_dep = len(lista_dep)
+
+        # Se houver dependentes, avisar e pedir uma ação antes de excluir
+        if total_dep > 0:
+            nomes = "\n".join(f"• {dep[1]}" for dep in lista_dep)
+            acao, ok = show_combo(
+                self,
+                "⚠️  Responsável com dependentes",
+                (f"'{nome}' é responsável por {total_dep} dependente(s):\n\n{nomes}\n\n"
+                 f"Antes de excluir, escolha o que fazer com os dependentes:"),
+                ["Ajustar plano dos dependentes", "Nomear novo responsável"],
+                default="Ajustar plano dos dependentes",
+            )
+            if not ok:
+                return
+            if acao == "Ajustar plano dos dependentes":
+                if not self._ajustar_plano_dependentes(d, dependentes):
+                    return
+            else:
+                if not self._nomear_novo_responsavel(d, dependentes):
+                    return
+
+        # Mensagem de confirmação
         mensagem = f"ATENÇÃO: Esta ação não pode ser desfeita!\n\n"
         mensagem += f"Aluno: {nome}\n"
         mensagem += f"Tipo: {tipo}\n"
-        
-        if tem_dependentes:
-            mensagem += f"\n⚠️  CUIDADO: Este responsável possui dependentes cadastrados!\n"
-            mensagem += f"A exclusão pode afetar os registros dos dependentes.\n"
-        
-        mensagem += f"\nDeseja realmente EXCLUIR este aluno?"
-        
+        mensagem += f"\nAs mensalidades deste aluno também serão excluídas."
+        mensagem += f"\n\nDeseja realmente EXCLUIR este aluno?"
+
         resposta = show_question(
-            self, 
-            "🗑️  Confirmar Exclusão", 
+            self,
+            "🗑️  Confirmar Exclusão",
             mensagem,
             "Sim, Excluir", "Não, Cancelar"
         )
-        
+
         if not resposta:
             return
-            
+
         try:
             if d["tipo"] == "adulto":
                 excluir_aluno(d["id"])
             else:
-                # Excluir do banco kids
-                conn = get_conn()
-                cur = conn.cursor()
-                cur.execute("DELETE FROM kids WHERE id=?", (d["id"],))
-                conn.commit()
-                conn.close()
-            
+                excluir_kid(d["id"])
+
             # Feedback de sucesso
             show_info(
                 self, 
@@ -1699,6 +1704,97 @@ class AlunosTab(BaseTab):
                 "Erro", 
                 f"Erro ao excluir aluno: {str(e)}"
             )
+
+    def _ajustar_plano_dependentes(self, responsavel, dependentes):
+        """Aplica um novo plano aos dependentes e os desvincula do responsável.
+
+        Retorna True se a ação foi concluída (ou não havia o que fazer).
+        """
+        opcoes = [p for p in get_planos_formatados() if p != "Plano Personalizado"]
+        if not opcoes:
+            opcoes = ["Adulto - R$180"]
+        plano, ok = show_combo(
+            self, "Ajustar plano dos dependentes",
+            "Selecione o plano que passará a valer para os dependentes:",
+            opcoes, default=opcoes[0]
+        )
+        if not ok or not plano.strip():
+            return False
+        plano = plano.strip()
+
+        try:
+            for dep_id, _dep_nome, _dep_plano in dependentes["adultos"]:
+                definir_plano_aluno(dep_id, plano, "adulto")
+                atualizar_mensalidades_por_plano(dep_id, plano)
+            for dep_id, _dep_nome, _dep_plano in dependentes["kids"]:
+                definir_plano_aluno(dep_id, plano, "kids")
+                atualizar_mensalidades_por_plano(-dep_id, plano)
+
+            # Dependentes adultos deixam de ter responsável
+            desvincular_dependentes(responsavel["id"])
+
+            try:
+                gerar_mensalidades_anuais()
+            except Exception:
+                pass
+            return True
+        except Exception as e:
+            show_error(self, "Erro", f"Não foi possível ajustar os planos: {str(e)}")
+            return False
+
+    def _nomear_novo_responsavel(self, responsavel, dependentes):
+        """Transfere os dependentes para um novo responsável escolhido pelo usuário.
+
+        Retorna True se a ação foi concluída.
+        """
+        # Candidatos: dependentes adultos + demais adultos ativos (exceto o que será excluído)
+        candidatos = {}  # nome exibido -> (id, nome, cpf)
+        for dep_id, dep_nome, _p in dependentes["adultos"]:
+            candidatos[f"{dep_nome} (dependente)"] = (dep_id, dep_nome)
+
+        for reg in self.registros:
+            if reg.get("tipo") == "adulto" and reg.get("id") != responsavel["id"]:
+                if not any(v[0] == reg["id"] for v in candidatos.values()):
+                    candidatos[reg["nome"]] = (reg["id"], reg["nome"])
+
+        if not candidatos:
+            show_warning(
+                self, "Sem candidatos",
+                "Não há outro adulto disponível para assumir como responsável.\n"
+                "Ajuste o plano dos dependentes."
+            )
+            return False
+
+        escolha, ok = show_combo(
+            self, "Nomear novo responsável",
+            "Selecione quem passará a ser o responsável pelos dependentes:",
+            list(candidatos.keys()), default=list(candidatos.keys())[0]
+        )
+        if not ok or escolha not in candidatos:
+            return False
+
+        novo_id, novo_nome = candidatos[escolha]
+
+        # Buscar o CPF do novo responsável
+        novo_cpf = None
+        for reg in self.registros:
+            if reg.get("id") == novo_id and reg.get("tipo") == "adulto":
+                novo_cpf = reg.get("cpf")
+                break
+
+        try:
+            reatribuir_dependentes(
+                responsavel["id"], responsavel.get("cpf"),
+                novo_id, novo_nome, novo_cpf
+            )
+            show_info(
+                self, "Responsável atualizado",
+                f"Os dependentes agora estão vinculados a {novo_nome}."
+            )
+            return True
+        except Exception as e:
+            show_error(self, "Erro", f"Não foi possível reatribuir os dependentes: {str(e)}")
+            return False
 
                 
     def sincronizar_planos_dependentes(self, responsavel_cpf, novo_plano, aluno_origem_id):

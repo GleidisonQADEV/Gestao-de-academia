@@ -321,7 +321,80 @@ def listar_todos_alunos():
 def excluir_aluno(aluno_id):
     conn = get_conn()
     cur = conn.cursor()
+    # Remove também as mensalidades do aluno (aluno_id positivo = adulto)
+    cur.execute("DELETE FROM mensalidades WHERE aluno_id=?", (aluno_id,))
     cur.execute("DELETE FROM alunos WHERE id=?", (aluno_id,))
+    conn.commit()
+    conn.close()
+
+
+def obter_dependentes(aluno_id, cpf=None):
+    """Retorna os dependentes de um responsável (adulto).
+
+    Considera dependentes adultos (alunos.responsavel_id) e kids (kids.resp_cpf).
+    Retorna dict: {'adultos': [(id, nome, plano)], 'kids': [(id, nome, plano)]}.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT id, nome, plano FROM alunos WHERE responsavel_id=? AND ativo=1",
+        (aluno_id,),
+    )
+    adultos = cur.fetchall()
+
+    kids = []
+    if cpf:
+        try:
+            cur.execute(
+                "SELECT id, nome, plano FROM kids WHERE resp_cpf=? AND ativo=1",
+                (cpf,),
+            )
+            kids = cur.fetchall()
+        except Exception:
+            kids = []
+
+    conn.close()
+    return {"adultos": adultos, "kids": kids}
+
+
+def reatribuir_dependentes(antigo_id, antigo_cpf, novo_id, novo_nome, novo_cpf):
+    """Transfere os dependentes de um responsável para um novo responsável.
+
+    - Dependentes adultos (responsavel_id) passam a apontar para novo_id.
+    - O novo responsável, se era dependente, fica sem responsável (responsavel_id NULL).
+    - Kids têm resp_cpf/resp_nome atualizados para o novo responsável.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute(
+        "UPDATE alunos SET responsavel_id=? WHERE responsavel_id=? AND id!=?",
+        (novo_id, antigo_id, novo_id),
+    )
+    cur.execute("UPDATE alunos SET responsavel_id=NULL WHERE id=?", (novo_id,))
+
+    if antigo_cpf:
+        try:
+            cur.execute(
+                "UPDATE kids SET resp_cpf=?, resp_nome=? WHERE resp_cpf=?",
+                (novo_cpf, novo_nome, antigo_cpf),
+            )
+        except Exception:
+            pass
+
+    conn.commit()
+    conn.close()
+
+
+def desvincular_dependentes(responsavel_id):
+    """Remove o vínculo de dependência dos dependentes adultos (responsavel_id NULL)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE alunos SET responsavel_id=NULL WHERE responsavel_id=?",
+        (responsavel_id,),
+    )
     conn.commit()
     conn.close()
 

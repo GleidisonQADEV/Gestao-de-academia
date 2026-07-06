@@ -228,6 +228,8 @@ def inativar_kid(kid_id, ativo):
 def excluir_kid(kid_id):
     conn = get_conn()
     cur = conn.cursor()
+    # Remove também as mensalidades do kid (aluno_id negativo nas mensalidades)
+    cur.execute("DELETE FROM mensalidades WHERE aluno_id=?", (-kid_id,))
     cur.execute("DELETE FROM kids WHERE id=?", (kid_id,))
     conn.commit()
     conn.close()
