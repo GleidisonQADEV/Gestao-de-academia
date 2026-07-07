@@ -266,6 +266,16 @@ class MainWindow(QWidget):
         self._btn_update.clicked.connect(self._iniciar_download_update)
         footer_layout.addWidget(self._btn_update)
 
+        # ── Versão do app (acima do botão Sair) ──
+        lbl_versao = QLabel(f"v{APP_VERSION}")
+        lbl_versao.setObjectName("sidebarVersao")
+        lbl_versao.setAlignment(Qt.AlignCenter)
+        lbl_versao.setStyleSheet(
+            "#sidebarVersao { color:#5a5a5a; font-size:10px; background:transparent;"
+            " border:none; padding:6px 8px 2px 8px; }"
+        )
+        footer_layout.addWidget(lbl_versao)
+
         footer_layout.addWidget(btn_sair)
         sidebar.addWidget(footer)
 
