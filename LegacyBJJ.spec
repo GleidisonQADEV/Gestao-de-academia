@@ -18,6 +18,7 @@ a = Analysis(
         'PySide6.QtXml',
         'reportlab',
         'reportlab.graphics.barcode',
+        'certifi',
     ],
     hookspath=[],
     hooksconfig={},

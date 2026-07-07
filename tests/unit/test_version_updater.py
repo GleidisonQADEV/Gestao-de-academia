@@ -134,6 +134,21 @@ class TestMensagemChecagemManual:
         )
         assert nivel is None
 
+    def test_falha_inclui_detalhe_tecnico(self):
+        nivel, _titulo, texto = mensagem_checagem_manual(
+            update_found=False, check_failed=True, app_version="1.2.8",
+            detalhe="URLError: [SSL: CERTIFICATE_VERIFY_FAILED]"
+        )
+        assert nivel == "error"
+        assert "Detalhes técnicos" in texto
+        assert "CERTIFICATE_VERIFY_FAILED" in texto
+
+    def test_falha_sem_detalhe_nao_mostra_secao_tecnica(self):
+        _nivel, _titulo, texto = mensagem_checagem_manual(
+            update_found=False, check_failed=True, app_version="1.2.8", detalhe=""
+        )
+        assert "Detalhes técnicos" not in texto
+
 
 
 # ──────────────────────────────────────────────
@@ -194,6 +209,14 @@ class TestUpdateChecker:
             checker.run()
 
         assert failed == [True]
+
+    def test_falha_de_rede_captura_detalhe(self):
+        checker = self._make_checker("1.0.0")
+        with patch('urllib.request.urlopen', side_effect=urllib.error.URLError("timeout")):
+            checker.run()
+
+        assert checker.error_detail
+        assert "URLError" in checker.error_detail
 
     def test_tag_vazia_nao_emite(self):
         checker = self._make_checker("1.0.0")

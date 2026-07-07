@@ -340,10 +340,12 @@ class MainWindow(QWidget):
 
     def _on_checagem_manual_fim(self):
         from ui.updater import mensagem_checagem_manual
+        detalhe = getattr(self._checker_manual, "error_detail", "") if hasattr(self, "_checker_manual") else ""
         nivel, titulo, texto = mensagem_checagem_manual(
             getattr(self, "_manual_update_found", False),
             getattr(self, "_manual_check_failed", False),
             APP_VERSION,
+            detalhe,
         )
         if nivel == "error":
             show_error(self, titulo, texto)
