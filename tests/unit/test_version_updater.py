@@ -44,7 +44,7 @@ sys.modules['PySide6'] = MagicMock()
 sys.modules['PySide6.QtCore'] = _fake_qtcore
 
 # Agora é seguro importar
-from ui.updater import UpdateChecker, _parse_version  # noqa: E402
+from ui.updater import UpdateChecker, _parse_version, mensagem_checagem_manual  # noqa: E402
 
 # Restaurar imediatamente os módulos reais do PySide6 para não poluir o estado
 # global compartilhado entre os testes.
@@ -99,6 +99,41 @@ class TestParseVersion:
 
     def test_versao_menor(self):
         assert _parse_version("0.9.9") < _parse_version("1.0.0")
+
+
+# ──────────────────────────────────────────────
+# mensagem_checagem_manual
+# ──────────────────────────────────────────────
+
+class TestMensagemChecagemManual:
+    def test_update_encontrado_nao_mostra_mensagem(self):
+        nivel, _titulo, _texto = mensagem_checagem_manual(
+            update_found=True, check_failed=False, app_version="1.2.8"
+        )
+        assert nivel is None
+
+    def test_falha_na_checagem_mostra_erro(self):
+        nivel, titulo, texto = mensagem_checagem_manual(
+            update_found=False, check_failed=True, app_version="1.2.8"
+        )
+        assert nivel == "error"
+        assert titulo == "Atualizações"
+        assert "firewall" in texto.lower() or "github.com" in texto.lower()
+
+    def test_ja_esta_atualizado_mostra_info(self):
+        nivel, _titulo, texto = mensagem_checagem_manual(
+            update_found=False, check_failed=False, app_version="1.2.8"
+        )
+        assert nivel == "info"
+        assert "1.2.8" in texto
+
+    def test_update_tem_prioridade_sobre_falha(self):
+        # Se achou update, não importa a flag de falha: nenhuma mensagem
+        nivel, _titulo, _texto = mensagem_checagem_manual(
+            update_found=True, check_failed=True, app_version="1.2.8"
+        )
+        assert nivel is None
+
 
 
 # ──────────────────────────────────────────────

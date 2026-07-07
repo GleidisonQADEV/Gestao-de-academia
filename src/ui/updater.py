@@ -14,6 +14,29 @@ def _parse_version(v: str) -> tuple:
     return tuple(int(x) for x in v.lstrip("v").split("."))
 
 
+def mensagem_checagem_manual(update_found: bool, check_failed: bool, app_version: str) -> tuple:
+    """Decide a mensagem da verificação manual de atualizações.
+
+    Retorna (nivel, titulo, texto) onde nivel é 'info', 'error' ou None.
+    - update_found: uma nova versão foi encontrada (nenhuma mensagem é necessária).
+    - check_failed: a verificação falhou (rede/firewall).
+    - caso contrário: já está na versão mais recente.
+    """
+    if update_found:
+        return (None, "", "")
+    if check_failed:
+        return (
+            "error", "Atualizações",
+            "Não foi possível verificar atualizações.\n\n"
+            "Verifique a conexão com a internet e se o antivírus/firewall "
+            "não está bloqueando o acesso a github.com."
+        )
+    return (
+        "info", "Atualizações",
+        f"Você já está na versão mais recente (v{app_version})."
+    )
+
+
 class UpdateChecker(QThread):
     """Background thread: checks GitHub Releases for a newer version."""
     update_available = Signal(str, str)  # (new_version, download_url)
