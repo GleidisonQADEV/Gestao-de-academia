@@ -36,11 +36,16 @@ class ConfigTab(BaseTab):
         wrapper_layout.setContentsMargins(0, 0, 0, 0)
 
         container = QWidget()
-        container.setMaximumWidth(640)
+        container.setMaximumWidth(1000)
         container.setStyleSheet("background: transparent;")
-        container_layout = QVBoxLayout(container)
+        container_layout = QGridLayout(container)
+        self.secoes_layout = container_layout
         container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(16)
+        container_layout.setHorizontalSpacing(16)
+        container_layout.setVerticalSpacing(16)
+        container_layout.setAlignment(Qt.AlignTop)
+        container_layout.setColumnStretch(0, 1)
+        container_layout.setColumnStretch(1, 1)
 
         # ── SEÇÃO SEGURANÇA ──
         sec_seg = QFrame()
@@ -86,8 +91,6 @@ class ConfigTab(BaseTab):
         btn_trocar_senha.clicked.connect(self.trocar_senha)
         row_senha.addWidget(btn_trocar_senha)
         sec_seg_layout.addLayout(row_senha)
-
-        container_layout.addWidget(sec_seg)
 
         # ── SEÇÃO PLANOS ──
         sec_planos = QFrame()
@@ -143,20 +146,16 @@ class ConfigTab(BaseTab):
 
         self.cards_widget = QWidget()
         self.cards_widget.setStyleSheet("background: transparent;")
-        self.cards_layout = QGridLayout(self.cards_widget)
-        self.cards_layout.setHorizontalSpacing(8)
-        self.cards_layout.setVerticalSpacing(8)
-        self.cards_layout.setContentsMargins(0, 0, 0, 0)
+        self.cards_layout = QVBoxLayout(self.cards_widget)
+        self.cards_layout.setSpacing(8)
         self.cards_layout.setAlignment(Qt.AlignTop)
-        self.cards_layout.setColumnStretch(0, 1)
-        self.cards_layout.setColumnStretch(1, 1)
         scroll_area.setWidget(self.cards_widget)
         sec_planos_layout.addWidget(scroll_area)
 
-        container_layout.addWidget(sec_planos)
-        container_layout.addWidget(self._build_secao_dados())
-        container_layout.addWidget(self._build_secao_sistema())
-        container_layout.addStretch()
+        container_layout.addWidget(sec_seg,                        0, 0, Qt.AlignTop)
+        container_layout.addWidget(sec_planos,                     0, 1, Qt.AlignTop)
+        container_layout.addWidget(self._build_secao_dados(),      1, 0, Qt.AlignTop)
+        container_layout.addWidget(self._build_secao_sistema(),    1, 1, Qt.AlignTop)
 
         wrapper_layout.addStretch()
         wrapper_layout.addWidget(container)
@@ -376,14 +375,13 @@ class ConfigTab(BaseTab):
                     "#emptyLabel { color:#9a9a9a; font-size:13px; background:transparent; border:none; }"
                 )
                 sem_planos.setAlignment(Qt.AlignCenter)
-                self.cards_layout.addWidget(sem_planos, 0, 0, 1, 2)
+                self.cards_layout.addWidget(sem_planos)
                 return
-            for indice, (plano_id, nome, valor) in enumerate(planos):
+            for plano_id, nome, valor in planos:
                 card = PlanoCard(plano_id, nome, valor)
                 card.set_editar_callback(self.editar_plano_card)
                 card.set_excluir_callback(self.excluir_plano_card)
-                linha, coluna = divmod(indice, 2)
-                self.cards_layout.addWidget(card, linha, coluna)
+                self.cards_layout.addWidget(card)
         except Exception as e:
             show_error(self, "Erro ao carregar planos", f"Erro: {str(e)}")
 
@@ -426,7 +424,6 @@ class PlanoCard(QFrame):
             "QFrame#planoCard { background: #111111; border: 1px solid #1e1e1e; border-radius: 8px; }"
             "QFrame#planoCard:hover { border: 1px solid #2a2a2a; }"
         )
-        self.setMinimumWidth(250)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 10, 14, 10)
