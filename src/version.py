@@ -1,2 +1,2 @@
-APP_VERSION = "1.2.7"
+APP_VERSION = "1.2.8"
 GITHUB_REPO = "GleidisonQADEV/Gestao-de-academia"
