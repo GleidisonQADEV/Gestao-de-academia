@@ -1,7 +1,7 @@
 import os
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QFrame,
-    QLineEdit, QFormLayout, QDialog, QScrollArea
+    QLineEdit, QFormLayout, QDialog, QScrollArea, QGridLayout
 )
 from PySide6.QtCore import Qt
 from .base_tab import BaseTab, SCROLLBAR_STYLE
@@ -143,9 +143,13 @@ class ConfigTab(BaseTab):
 
         self.cards_widget = QWidget()
         self.cards_widget.setStyleSheet("background: transparent;")
-        self.cards_layout = QVBoxLayout(self.cards_widget)
-        self.cards_layout.setSpacing(8)
+        self.cards_layout = QGridLayout(self.cards_widget)
+        self.cards_layout.setHorizontalSpacing(8)
+        self.cards_layout.setVerticalSpacing(8)
+        self.cards_layout.setContentsMargins(0, 0, 0, 0)
         self.cards_layout.setAlignment(Qt.AlignTop)
+        self.cards_layout.setColumnStretch(0, 1)
+        self.cards_layout.setColumnStretch(1, 1)
         scroll_area.setWidget(self.cards_widget)
         sec_planos_layout.addWidget(scroll_area)
 
@@ -372,13 +376,14 @@ class ConfigTab(BaseTab):
                     "#emptyLabel { color:#9a9a9a; font-size:13px; background:transparent; border:none; }"
                 )
                 sem_planos.setAlignment(Qt.AlignCenter)
-                self.cards_layout.addWidget(sem_planos)
+                self.cards_layout.addWidget(sem_planos, 0, 0, 1, 2)
                 return
-            for plano_id, nome, valor in planos:
+            for indice, (plano_id, nome, valor) in enumerate(planos):
                 card = PlanoCard(plano_id, nome, valor)
                 card.set_editar_callback(self.editar_plano_card)
                 card.set_excluir_callback(self.excluir_plano_card)
-                self.cards_layout.addWidget(card)
+                linha, coluna = divmod(indice, 2)
+                self.cards_layout.addWidget(card, linha, coluna)
         except Exception as e:
             show_error(self, "Erro ao carregar planos", f"Erro: {str(e)}")
 
@@ -421,6 +426,7 @@ class PlanoCard(QFrame):
             "QFrame#planoCard { background: #111111; border: 1px solid #1e1e1e; border-radius: 8px; }"
             "QFrame#planoCard:hover { border: 1px solid #2a2a2a; }"
         )
+        self.setMinimumWidth(250)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 10, 14, 10)
