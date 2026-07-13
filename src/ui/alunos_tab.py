@@ -932,10 +932,8 @@ class AlunosTab(BaseTab):
                 "responsavel_cpf": a[20] if len(a) > 20 and a[20] else None,
                 "dependentes_nomes": a[21] if len(a) > 21 and a[21] else None,
                 "total_dependentes": a[22] if len(a) > 22 else 0,
-                # Dependente vinculado: status igual ao do responsável
-                "pagamento_status": status_mes.get(
-                    a[18] if (len(a) > 18 and a[18]) else a[0], ''
-                ),
+                # Status de pagamento: vazio para dependentes vinculados
+                "pagamento_status": "" if (len(a) > 18 and a[18]) else status_mes.get(a[0], ''),
             })
 
         # Mapa CPF -> id dos adultos (para propagar status do responsável aos kids)
