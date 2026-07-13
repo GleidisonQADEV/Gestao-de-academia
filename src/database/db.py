@@ -111,7 +111,7 @@ def init_db():
 
     # Campos extras (ficha de matrícula / planilha): adicionados se não existirem
     for _col in ("tipo_sanguineo", "contato_emergencia", "alergias",
-                 "condicoes_medicas", "tempo_faixa"):
+                 "condicoes_medicas", "tempo_faixa", "observacao_professor"):
         try:
             cur.execute(f"SELECT {_col} FROM alunos LIMIT 1")
         except sqlite3.OperationalError:
@@ -210,6 +210,36 @@ def init_db():
     # Criar índices para melhor performance
     cur.execute("CREATE INDEX IF NOT EXISTS idx_presenca_aluno_id ON registros_presenca(aluno_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_presenca_data ON registros_presenca(data_registro)")
+
+    # ---- tabela aulas (diário do professor) ----
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS aulas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data DATE NOT NULL,
+            hora TEXT,
+            titulo TEXT,
+            conteudo TEXT,
+            dificuldades TEXT,
+            observacoes TEXT,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_aulas_data ON aulas(data)")
+
+    # ---- tabela de lançamentos financeiros (receitas/despesas avulsas) ----
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS financeiro_lancamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,           -- 'RECEITA' ou 'DESPESA'
+            categoria TEXT,
+            descricao TEXT,
+            valor REAL NOT NULL,
+            data DATE NOT NULL,
+            recorrente INTEGER DEFAULT 0, -- 1 = despesa/receita fixa mensal
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_lancamentos_data ON financeiro_lancamentos(data)")
 
     conn.commit()
     conn.close()
@@ -399,10 +429,83 @@ def desvincular_dependentes(responsavel_id):
     conn.close()
 
 
+def inativar_dependentes(responsavel_id):
+    """Inativa todos os dependentes (adultos e kids) de um responsável."""
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute(
+        "UPDATE alunos SET ativo=0 WHERE responsavel_id=? AND ativo=1",
+        (responsavel_id,),
+    )
+    cur.execute(
+        "UPDATE kids SET ativo=0 WHERE resp_cpf=(SELECT cpf FROM alunos WHERE id=?) AND ativo=1",
+        (responsavel_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def atualizar_valor_dependente(dependente_id, tipo, novo_valor):
+    """Atualiza o plano/valor de um dependente para um valor personalizado.
+
+    tipo: 'adulto' ou 'kid'
+    novo_valor: valor em reais para criar um plano personalizado
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    plano_nome = f"Personalizado - R${novo_valor:.2f}"
+
+    if tipo == "adulto":
+        cur.execute(
+            "UPDATE alunos SET plano=? WHERE id=?",
+            (plano_nome, dependente_id),
+        )
+    else:  # kid
+        cur.execute(
+            "UPDATE kids SET plano=? WHERE id=?",
+            (plano_nome, dependente_id),
+        )
+
+    conn.commit()
+    conn.close()
+
+
 def inativar_aluno(aluno_id, novo_status=0):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("UPDATE alunos SET ativo=? WHERE id=?", (novo_status, aluno_id))
+    _sincronizar_status_mensalidades(cur, aluno_id, novo_status)
+    conn.commit()
+    conn.close()
+
+
+def _sincronizar_status_mensalidades(cur, id_mensalidade, novo_status):
+    """Ao inativar (0) um aluno, congela as mensalidades PENDENTES como INATIVO.
+    Ao reativar (1), volta as INATIVO para PENDENTE. Mensalidades PAGAS não mudam.
+
+    id_mensalidade é o id usado em mensalidades.aluno_id (positivo p/ adulto,
+    negativo p/ kid).
+    """
+    if novo_status == 0:
+        cur.execute(
+            "UPDATE mensalidades SET status='INATIVO' "
+            "WHERE aluno_id=? AND status='PENDENTE'",
+            (id_mensalidade,),
+        )
+    else:
+        cur.execute(
+            "UPDATE mensalidades SET status='PENDENTE' "
+            "WHERE aluno_id=? AND status='INATIVO'",
+            (id_mensalidade,),
+        )
+
+
+def sincronizar_status_mensalidades(id_mensalidade, novo_status):
+    """Versão pública (abre conexão própria) para uso pela UI de kids."""
+    conn = get_conn()
+    cur = conn.cursor()
+    _sincronizar_status_mensalidades(cur, id_mensalidade, novo_status)
     conn.commit()
     conn.close()
 
@@ -992,6 +1095,197 @@ def obter_status_pagamento_mes(ano=None, mes=None):
                 result[aluno_id] = 'A Vencer'
     conn.close()
     return result
+
+
+# ================= OBSERVAÇÃO DO PROFESSOR (FICHA) =================
+
+def obter_observacao_professor(aluno_id, tipo="adulto"):
+    """Retorna a observação do professor sobre o aluno (adulto ou kid)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    tabela = "alunos" if tipo == "adulto" else "kids"
+    try:
+        cur.execute(f"SELECT observacao_professor FROM {tabela} WHERE id=?", (aluno_id,))
+        row = cur.fetchone()
+    except Exception:
+        row = None
+    conn.close()
+    return (row[0] if row and row[0] else "")
+
+
+def salvar_observacao_professor(aluno_id, texto, tipo="adulto"):
+    """Salva a observação do professor sobre o aluno (adulto ou kid)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    tabela = "alunos" if tipo == "adulto" else "kids"
+    cur.execute(f"UPDATE {tabela} SET observacao_professor=? WHERE id=?", (texto, aluno_id))
+    conn.commit()
+    conn.close()
+
+
+# ================= AULAS (DIÁRIO DO PROFESSOR) =================
+
+def criar_aula(data, hora="", titulo="", conteudo="", dificuldades="", observacoes=""):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO aulas (data, hora, titulo, conteudo, dificuldades, observacoes)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (data, hora, titulo, conteudo, dificuldades, observacoes),
+    )
+    aula_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return aula_id
+
+
+def listar_aulas(limite=None):
+    """Lista as aulas mais recentes primeiro."""
+    conn = get_conn()
+    cur = conn.cursor()
+    sql = ("SELECT id, data, hora, titulo, conteudo, dificuldades, observacoes "
+           "FROM aulas ORDER BY data DESC, hora DESC, id DESC")
+    if limite:
+        sql += f" LIMIT {int(limite)}"
+    cur.execute(sql)
+    aulas = cur.fetchall()
+    conn.close()
+    return aulas
+
+
+def atualizar_aula(aula_id, data, hora, titulo, conteudo, dificuldades, observacoes):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """UPDATE aulas SET data=?, hora=?, titulo=?, conteudo=?,
+           dificuldades=?, observacoes=? WHERE id=?""",
+        (data, hora, titulo, conteudo, dificuldades, observacoes, aula_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def excluir_aula(aula_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM aulas WHERE id=?", (aula_id,))
+    conn.commit()
+    conn.close()
+
+
+# ================= CONTROLE FINANCEIRO (RECEITAS / DESPESAS) =================
+
+def criar_lancamento(tipo, valor, data, categoria="", descricao="", recorrente=0):
+    """Cria um lançamento financeiro. tipo = 'RECEITA' ou 'DESPESA'."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO financeiro_lancamentos (tipo, categoria, descricao, valor, data, recorrente)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (tipo, categoria, descricao, float(valor), data, 1 if recorrente else 0),
+    )
+    lanc_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return lanc_id
+
+
+def listar_lancamentos(ano=None, mes=None, tipo=None):
+    """Lista lançamentos, opcionalmente filtrando por ano/mês e tipo."""
+    conn = get_conn()
+    cur = conn.cursor()
+    sql = ("SELECT id, tipo, categoria, descricao, valor, data, recorrente "
+           "FROM financeiro_lancamentos WHERE 1=1")
+    params = []
+    if ano and mes:
+        sql += " AND strftime('%Y', data)=? AND strftime('%m', data)=?"
+        params += [f"{int(ano):04d}", f"{int(mes):02d}"]
+    if tipo:
+        sql += " AND tipo=?"
+        params.append(tipo)
+    sql += " ORDER BY data DESC, id DESC"
+    cur.execute(sql, params)
+    dados = cur.fetchall()
+    conn.close()
+    return dados
+
+
+def excluir_lancamento(lanc_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM financeiro_lancamentos WHERE id=?", (lanc_id,))
+    conn.commit()
+    conn.close()
+
+
+def obter_resumo_financeiro(ano=None, mes=None):
+    """Resumo financeiro do mês: receitas, despesas, saldo e projeções.
+
+    - receita_mensalidades_pagas: soma das mensalidades PAGAS no mês.
+    - receita_avulsa: receitas lançadas manualmente no mês.
+    - receita_realizada: pagas + avulsas.
+    - despesas: despesas lançadas no mês.
+    - saldo: receita_realizada - despesas.
+    - mensalidades_previstas: mensalidades PENDENTES do mês (a receber).
+    - receita_projetada: receita_realizada + mensalidades_previstas.
+    - saldo_projetado: receita_projetada - despesas.
+    """
+    from datetime import date as _date
+    hoje = _date.today()
+    ano = ano or hoje.year
+    mes = mes or hoje.month
+    ano_s, mes_s = f"{ano:04d}", f"{mes:02d}"
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    base_join = """
+        FROM mensalidades m
+        LEFT JOIN alunos a ON m.aluno_id = a.id AND a.ativo = 1 AND a.responsavel_id IS NULL
+        LEFT JOIN kids k ON m.aluno_id = -k.id AND k.ativo = 1
+        WHERE (a.id IS NOT NULL OR k.id IS NOT NULL)
+    """
+
+    cur.execute(f"""
+        SELECT COALESCE(SUM(m.valor), 0) {base_join}
+        AND m.status='PAGO'
+        AND strftime('%Y', m.data_pagamento)=? AND strftime('%m', m.data_pagamento)=?
+    """, (ano_s, mes_s))
+    pagas = cur.fetchone()[0] or 0.0
+
+    cur.execute(f"""
+        SELECT COALESCE(SUM(m.valor), 0) {base_join}
+        AND m.status='PENDENTE'
+        AND strftime('%Y', m.data_vencimento)=? AND strftime('%m', m.data_vencimento)=?
+    """, (ano_s, mes_s))
+    previstas = cur.fetchone()[0] or 0.0
+
+    cur.execute("""
+        SELECT COALESCE(SUM(valor), 0) FROM financeiro_lancamentos
+        WHERE tipo='RECEITA' AND strftime('%Y', data)=? AND strftime('%m', data)=?
+    """, (ano_s, mes_s))
+    receita_avulsa = cur.fetchone()[0] or 0.0
+
+    cur.execute("""
+        SELECT COALESCE(SUM(valor), 0) FROM financeiro_lancamentos
+        WHERE tipo='DESPESA' AND strftime('%Y', data)=? AND strftime('%m', data)=?
+    """, (ano_s, mes_s))
+    despesas = cur.fetchone()[0] or 0.0
+
+    conn.close()
+
+    receita_realizada = pagas + receita_avulsa
+    receita_projetada = receita_realizada + previstas
+    return {
+        "receita_mensalidades_pagas": pagas,
+        "receita_avulsa": receita_avulsa,
+        "receita_realizada": receita_realizada,
+        "despesas": despesas,
+        "saldo": receita_realizada - despesas,
+        "mensalidades_previstas": previstas,
+        "receita_projetada": receita_projetada,
+        "saldo_projetado": receita_projetada - despesas,
+    }
 
 
 # ================= GERENCIAMENTO DE PLANOS =================

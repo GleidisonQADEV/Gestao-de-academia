@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap, QPalette, QBrush
 
 from ui.base_tab import BaseTab
-from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes, atualizar_mensalidades_por_plano, definir_plano_aluno, gerar_mensalidades_anuais, get_planos_formatados, obter_dependentes, reatribuir_dependentes, desvincular_dependentes
+from database.db import listar_alunos, inativar_aluno, excluir_aluno, listar_todos_alunos, atualizar_aluno, cpf_existe, email_existe, obter_status_pagamento_mes, atualizar_mensalidades_por_plano, definir_plano_aluno, gerar_mensalidades_anuais, get_planos_formatados, obter_dependentes, reatribuir_dependentes, desvincular_dependentes, inativar_dependentes, atualizar_valor_dependente
 from database.kids_db import get_conn, atualizar_kid, cpf_kid_existe, excluir_kid
 from ui.app_dialog import show_info, show_warning, show_error, show_question, show_custom, show_input, show_combo
 
@@ -932,8 +932,16 @@ class AlunosTab(BaseTab):
                 "responsavel_cpf": a[20] if len(a) > 20 and a[20] else None,
                 "dependentes_nomes": a[21] if len(a) > 21 and a[21] else None,
                 "total_dependentes": a[22] if len(a) > 22 else 0,
-                "pagamento_status": status_mes.get(a[0], ''),
+                # Dependente vinculado: status igual ao do responsável
+                "pagamento_status": status_mes.get(
+                    a[18] if (len(a) > 18 and a[18]) else a[0], ''
+                ),
             })
+
+        # Mapa CPF -> id dos adultos (para propagar status do responsável aos kids)
+        _cpf_para_id_adulto = {
+            r["cpf"]: r["id"] for r in self.registros if r["tipo"] == "adulto" and r.get("cpf")
+        }
 
         conn = get_conn()
         cur = conn.cursor()
@@ -942,6 +950,14 @@ class AlunosTab(BaseTab):
         conn.close()
 
         for k in kids:
+            _plano_kid = (k[14] or "")
+            _dependente = ("dependente" in _plano_kid.lower()) or ("vinculado" in _plano_kid.lower())
+            _resp_id = _cpf_para_id_adulto.get(k[4])
+            if _dependente and _resp_id:
+                # Kid dependente: status igual ao do responsável
+                _pag_status = status_mes.get(_resp_id, '')
+            else:
+                _pag_status = status_mes.get(-k[0], '')
             self.registros.append({
                 "tipo": "kids",
                 "id": k[0],
@@ -961,7 +977,7 @@ class AlunosTab(BaseTab):
                 "status": k[17],
                 "responsavel": k[3],
                 "responsavel_cpf": k[4],
-                "pagamento_status": status_mes.get(-k[0], ''),
+                "pagamento_status": _pag_status,
             })
 
     # ---------------- AÇÕES ----------------
@@ -1542,90 +1558,122 @@ class AlunosTab(BaseTab):
         nome = d["nome"]
         status_atual = "ATIVO" if d["status"] else "INATIVO"
         novo_status_texto = "INATIVO" if d["status"] else "ATIVO"
-        
-        # REGRA DE NEGÓCIO: Verificar dependentes ao inativar responsável
-        dependentes_afetados = []
-        if d["tipo"] == "adulto" and d["status"]:  # Se está inativando um adulto que está ATIVO
-            # Procurar dependentes deste responsável
-            for registro in self.registros:
-                if (registro["tipo"] == "kids" and 
-                    registro.get("responsavel_cpf") == d["cpf"]):
-                    dependentes_afetados.append(registro)
-        
-        # Confirmação diferenciada se há dependentes afetados
-        if dependentes_afetados and novo_status_texto == "INATIVO":
-            # ALERTA ESPECIAL PARA RESPONSÁVEL COM DEPENDENTES
-            mensagem_dependentes = f"Este responsável possui {len(dependentes_afetados)} dependente(s).\n\n"
-            mensagem_dependentes += "📋 IMPLICAÇÕES DA INATIVAÇÃO:\n"
-            mensagem_dependentes += "• Os planos dos dependentes podem precisar ser ajustados\n"
-            mensagem_dependentes += "• Considere transferir a responsabilidade para outro adulto\n"
-            mensagem_dependentes += "• Ou revisar a situação financeira dos dependentes\n\n"
-            mensagem_dependentes += "⚠️ Os dependentes permanecerão ATIVOS após esta inativação."
-            
-            # Confirmação simples com aviso
-            if show_question(
-                self,
-                f"🚨 Inativação de Responsável - {nome}",
-                mensagem_dependentes,
-                "Inativar Responsável", "Cancelar"
-            ):
-                self.executar_inativacao(d)
-                show_info(
-                    self, 
-                    "Responsável Inativado", 
-                    f"✅ Responsável {nome} inativado.\n\n📝 Lembrete: Revisar planos dos {len(dependentes_afetados)} dependente(s)."
-                )
+
+        # Verificar dependentes ao inativar responsável
+        dependentes = None
+        if d["tipo"] == "adulto" and d["status"]:  # Se está inativando
+            dependentes = obter_dependentes(d["id"], d.get("cpf"))
+            total_dep = len(dependentes.get("adultos", [])) + len(dependentes.get("kids", []))
+
+            if total_dep > 0:
+                # Abrir diálogo para gerenciar dependentes
+                from ui.inativar_dependentes_dialog import InativarDependentesDialog
+                dlg = InativarDependentesDialog(self, nome, dependentes)
+                if dlg.exec() != dlg.Accepted:
+                    return
+
+                # Processar a escolha do usuário
+                if dlg.escolha == "inativar":
+                    self.executar_inativacao(d, inativar_deps=True)
+                    show_info(
+                        self,
+                        "Dependentes Inativados",
+                        f"✅ Responsável {nome} e seus {total_dep} dependente(s) foram inativados."
+                    )
+                elif dlg.escolha == "ajustar":
+                    self.executar_inativacao(d, inativar_deps=False, valores_ajustados=dlg.valores_ajustados)
+                    show_info(
+                        self,
+                        "Valores Ajustados",
+                        f"✅ Responsável {nome} inativado.\n\n"
+                        f"Valores de {len(dlg.valores_ajustados)} dependente(s) foram ajustados."
+                    )
+                else:
+                    return
             else:
-                return
+                # Confirmação normal se não houver dependentes
+                if show_question(
+                    self,
+                    "Confirmar Alteração",
+                    f"Aluno: {nome}\nStatus atual: {status_atual}\n\nDeseja alterar para {novo_status_texto}?",
+                    "Sim", "Não"
+                ):
+                    self.executar_inativacao(d)
+                    show_info(
+                        self,
+                        "Sucesso",
+                        f"Status do aluno {nome} alterado para {novo_status_texto}!"
+                    )
+                else:
+                    return
         else:
             # Confirmação normal (sem dependentes ou reativando)
             if show_question(
-                self, 
-                "Confirmar Alteração", 
+                self,
+                "Confirmar Alteração",
                 f"Aluno: {nome}\nStatus atual: {status_atual}\n\nDeseja alterar para {novo_status_texto}?",
                 "Sim", "Não"
             ):
                 self.executar_inativacao(d)
                 show_info(
-                    self, 
-                    "Sucesso", 
+                    self,
+                    "Sucesso",
                     f"Status do aluno {nome} alterado para {novo_status_texto}!"
                 )
-        
+
         # Recarregar e repopular a tabela
         self.buscar()
     
-    def executar_inativacao(self, dados_aluno):
-        """Executa a inativação/ativação do aluno no banco de dados"""
+    def executar_inativacao(self, dados_aluno, inativar_deps=False, valores_ajustados=None):
+        """Executa a inativação/ativação do aluno no banco de dados
+
+        inativar_deps: se True, inativa também todos os dependentes
+        valores_ajustados: dict com {tipo_id: valor} para atualizar dependentes
+        """
         try:
             novo_status = 0 if dados_aluno["status"] else 1
-            
+
             if dados_aluno["tipo"] == "adulto":
                 # Alterar status no banco adultos
                 inativar_aluno(dados_aluno["id"], novo_status)
+
+                # Processar dependentes se necessário
+                if inativar_deps and novo_status == 0:
+                    inativar_dependentes(dados_aluno["id"])
+
+                if valores_ajustados and novo_status == 0:
+                    for key, valor in valores_ajustados.items():
+                        tipo, dep_id = key.split("_")
+                        atualizar_valor_dependente(int(dep_id), tipo, valor)
             else:
-                # Alterar status no banco kids
-                conn = get_conn()
-                cur = conn.cursor()
-                cur.execute("UPDATE kids SET ativo=? WHERE id=?", (novo_status, dados_aluno["id"]))
-                conn.commit()
-                conn.close()
-            
+                # Alterar status no banco kids (também sincroniza mensalidades)
+                from database.kids_db import inativar_kid
+                inativar_kid(dados_aluno["id"], novo_status)
+
             # Atualizar o objeto atual se for o mesmo
             if self.aluno_atual and self.aluno_atual["id"] == dados_aluno["id"]:
                 self.aluno_atual["status"] = novo_status
-                
+
         except Exception as e:
             show_error(
-                self, 
-                "Erro", 
+                self,
+                "Erro",
                 f"Erro ao alterar status: {str(e)}"
             )
 
     def vincular_responsavel(self):
-        """Vincula um aluno existente a um responsável."""
-        from utils.vincular_utils import vincular_aluno_responsavel
-        if vincular_aluno_responsavel(self):
+        """Vincula o aluno selecionado a um responsável (busca por nome/CPF)."""
+        if not self.aluno_atual:
+            show_warning(self, "Vincular", "Selecione um aluno primeiro.")
+            return
+        d = self.aluno_atual
+        if d.get("tipo") != "adulto":
+            show_warning(self, "Vincular",
+                         "A vinculação de dependente é feita apenas para alunos adultos.")
+            return
+        from utils.vincular_utils import vincular_dependente
+        if vincular_dependente(self, d["id"], d.get("nome")):
+            self.aluno_atual = None
             self.buscar()
 
     def excluir(self):
@@ -2676,9 +2724,12 @@ class EdicaoAlunoDialog(QDialog):
             self.valor_plano_wrap.setVisible(texto == "Plano Personalizado")
 
     def vincular_responsavel_edicao(self):
-        """Vincula este aluno a um responsável e fecha o diálogo ao concluir."""
-        from utils.vincular_utils import vincular_aluno_responsavel
-        if vincular_aluno_responsavel(self):
+        """Vincula este aluno (o que está sendo editado) a um responsável.
+
+        Não pede o CPF do dependente — é o próprio aluno em edição.
+        """
+        from utils.vincular_utils import vincular_dependente
+        if vincular_dependente(self, self.dados_aluno.get("id"), self.dados_aluno.get("nome")):
             self.accept()
 
     def salvar(self):
@@ -2748,9 +2799,9 @@ class EdicaoAlunoDialog(QDialog):
 
     def vincular_responsavel(self):
         """Vincula um aluno existente a um responsável (usando função utilitária)"""
-        from utils.vincular_utils import vincular_aluno_responsavel
-        
-        if vincular_aluno_responsavel(self):
+        from utils.vincular_utils import vincular_dependente
+
+        if vincular_dependente(self, self.dados_aluno.get("id"), self.dados_aluno.get("nome")):
             # Recarregar dados
             self.load()
 

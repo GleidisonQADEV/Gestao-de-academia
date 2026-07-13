@@ -20,7 +20,9 @@ from ui.alunos_tab import AlunosTab
 from ui.dashboard_tab import DashboardTab
 from ui.cadastro_aluno_tab import CadastroAlunoTab
 from ui.financeiro_tab import FinanceiroTab
+from ui.financeiro_resumo_tab import FinanceiroResumoTab
 from ui.config_tab import ConfigTab
+from ui.aulas_tab import AulasTab
 
 
 _MENU_GROUPS = [
@@ -28,9 +30,11 @@ _MENU_GROUPS = [
         ("Dashboard",       1),
         ("Alunos",          0),
         ("Cadastrar Aluno", 2),
+        ("Aulas",           5),
     ]),
     ("GESTÃO", [
         ("Financeiro",      3),
+        ("Resumo Financeiro", 6),
         ("Configurações",   4),
     ]),
 ]
@@ -39,7 +43,9 @@ _SVG_ICONS = {
     "Dashboard":       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
     "Alunos":          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
     "Cadastrar Aluno": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>',
+    "Aulas":           '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
     "Financeiro":      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
+    "Resumo Financeiro": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/><path d="M3 12h18M3 6h18M3 18h18"/></svg>',
     "Configurações":   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
 }
 
@@ -285,17 +291,21 @@ class MainWindow(QWidget):
         self.stack = QStackedWidget()
         self.stack.setStyleSheet("background: #111111;")
 
-        self.alunos_tab     = AlunosTab()
-        self.dashboard_tab  = DashboardTab()
-        self.cadastro_tab   = CadastroAlunoTab(refresh_callback=self.alunos_tab.load)
-        self.financeiro_tab = FinanceiroTab()
-        self.config_tab     = ConfigTab()
+        self.alunos_tab           = AlunosTab()
+        self.dashboard_tab        = DashboardTab()
+        self.cadastro_tab         = CadastroAlunoTab(refresh_callback=self.alunos_tab.load)
+        self.financeiro_tab       = FinanceiroTab()
+        self.aulas_tab            = AulasTab()
+        self.financeiro_resumo_tab = FinanceiroResumoTab()
+        self.config_tab           = ConfigTab()
 
-        self.stack.addWidget(self.alunos_tab)
-        self.stack.addWidget(self.dashboard_tab)
-        self.stack.addWidget(self.cadastro_tab)
-        self.stack.addWidget(self.financeiro_tab)
-        self.stack.addWidget(self.config_tab)
+        self.stack.addWidget(self.alunos_tab)           # 0
+        self.stack.addWidget(self.dashboard_tab)        # 1
+        self.stack.addWidget(self.cadastro_tab)         # 2
+        self.stack.addWidget(self.financeiro_tab)       # 3
+        self.stack.addWidget(self.config_tab)           # 4
+        self.stack.addWidget(self.aulas_tab)            # 5
+        self.stack.addWidget(self.financeiro_resumo_tab) # 6
 
         self.stack.setCurrentIndex(1)
         root.addWidget(self.stack)
@@ -320,6 +330,10 @@ class MainWindow(QWidget):
             self.dashboard_tab.load()
         elif idx == 3:
             self.financeiro_tab.load()
+        elif idx == 5:
+            self.aulas_tab.load()
+        elif idx == 6:
+            self.financeiro_resumo_tab.load()
 
     def _iniciar_checagem_update(self):
         self._checker = UpdateChecker(APP_VERSION, GITHUB_REPO, parent=self)

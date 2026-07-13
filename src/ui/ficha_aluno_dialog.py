@@ -3,11 +3,14 @@
 Reutilizada pela aba Alunos e pelo Dashboard (ao clicar num aluno).
 """
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea, QWidget, QPushButton
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea, QWidget, QPushButton, QTextEdit
 )
 from PySide6.QtCore import Qt
 
-from database.db import get_conn, obter_percentual_presenca, obter_status_pagamento_mes
+from database.db import (
+    get_conn, obter_percentual_presenca, obter_status_pagamento_mes,
+    obter_observacao_professor, salvar_observacao_professor,
+)
 
 
 _BELT_COLORS = {
@@ -153,6 +156,46 @@ class FichaAlunoDialog(QDialog):
         for rotulo, valor in campos:
             cl.addWidget(self._linha(rotulo, valor))
 
+        # ── OBSERVAÇÃO DO PROFESSOR (editável) ──
+        obs_titulo = QLabel("Observação do professor")
+        obs_titulo.setStyleSheet(
+            "color:#ffffff; font-size:13px; font-weight:600; background:transparent;"
+            " border:none; margin-top:10px;"
+        )
+        cl.addWidget(obs_titulo)
+
+        self.obs_professor = QTextEdit()
+        self.obs_professor.setPlaceholderText(
+            "Anote aqui observações sobre o aluno (evolução, comportamento, lesões, etc.)"
+        )
+        self.obs_professor.setMinimumHeight(90)
+        self.obs_professor.setStyleSheet(
+            "QTextEdit { background:#0e0e0e; border:1px solid #1e1e1e; border-radius:8px;"
+            " color:#cccccc; font-size:13px; padding:8px; }"
+            "QTextEdit:focus { border:1.5px solid #cc1e1e; }"
+        )
+        try:
+            self.obs_professor.setPlainText(
+                obter_observacao_professor(self.aluno_id, self.tipo)
+            )
+        except Exception:
+            pass
+        cl.addWidget(self.obs_professor)
+
+        btn_salvar_obs = QPushButton("Salvar observação")
+        btn_salvar_obs.setCursor(Qt.PointingHandCursor)
+        btn_salvar_obs.setFixedHeight(32)
+        btn_salvar_obs.setStyleSheet(
+            "QPushButton { background:#1e1e1e; color:#cccccc; border:1px solid #2a2a2a;"
+            " border-radius:7px; font-size:12px; font-weight:600; padding:0 14px; }"
+            "QPushButton:hover { background:#252525; color:#ffffff; }"
+        )
+        btn_salvar_obs.clicked.connect(self._salvar_observacao)
+        linha_btn = QHBoxLayout()
+        linha_btn.addStretch()
+        linha_btn.addWidget(btn_salvar_obs)
+        cl.addLayout(linha_btn)
+
         scroll.setWidget(content)
         root.addWidget(scroll, 1)
 
@@ -170,6 +213,15 @@ class FichaAlunoDialog(QDialog):
         btn.clicked.connect(self.accept)
         footer.addWidget(btn)
         root.addLayout(footer)
+
+    def _salvar_observacao(self):
+        from ui.app_dialog import show_info, show_error
+        try:
+            texto = self.obs_professor.toPlainText().strip()
+            salvar_observacao_professor(self.aluno_id, texto, self.tipo)
+            show_info(self, "Observação salva", "A observação do professor foi salva.")
+        except Exception as e:
+            show_error(self, "Erro", f"Não foi possível salvar a observação: {str(e)}")
 
     def _card_destaque(self, titulo, valor, sub, cor):
         card = QFrame()

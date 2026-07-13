@@ -117,6 +117,12 @@ def init_kids_db():
         # Coluna não existe, vamos adicioná-la
         cur.execute("ALTER TABLE kids ADD COLUMN biometria_data TEXT")
 
+    # Observação do professor (ficha do aluno)
+    try:
+        cur.execute("SELECT observacao_professor FROM kids LIMIT 1")
+    except sqlite3.OperationalError:
+        cur.execute("ALTER TABLE kids ADD COLUMN observacao_professor TEXT")
+
     conn.commit()
     conn.close()
 
@@ -231,6 +237,27 @@ def excluir_kid(kid_id):
     # Remove também as mensalidades do kid (aluno_id negativo nas mensalidades)
     cur.execute("DELETE FROM mensalidades WHERE aluno_id=?", (-kid_id,))
     cur.execute("DELETE FROM kids WHERE id=?", (kid_id,))
+    conn.commit()
+    conn.close()
+
+
+def inativar_kid(kid_id, novo_status=0):
+    """Ativa/inativa um kid e sincroniza suas mensalidades (aluno_id negativo)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE kids SET ativo=? WHERE id=?", (novo_status, kid_id))
+    if novo_status == 0:
+        cur.execute(
+            "UPDATE mensalidades SET status='INATIVO' "
+            "WHERE aluno_id=? AND status='PENDENTE'",
+            (-kid_id,),
+        )
+    else:
+        cur.execute(
+            "UPDATE mensalidades SET status='PENDENTE' "
+            "WHERE aluno_id=? AND status='INATIVO'",
+            (-kid_id,),
+        )
     conn.commit()
     conn.close()
 
